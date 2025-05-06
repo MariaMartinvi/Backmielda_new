@@ -1,0 +1,24 @@
+# Generador de Cuentos Backend
+
+Este es el backend para el generador de cuentos, una API que permite generar historias personalizadas y convertirlas en audio utilizando servicios como OpenAI y Google Text-to-Speech (TTS).
+
+## Características
+
+- **Generación de historias**: Utiliza OpenAI GPT-3.5 para generar historias personalizadas basadas en parámetros como tema, longitud, tipo de historia, nivel de creatividad y grupo de edad.
+- **Conversión de texto a audio**: Convierte las historias generadas en archivos de audio utilizando Google TTS.
+- **Seguridad**: Incluye middleware de seguridad como Helmet y limitación de tasa para proteger la API.
+- **Configuración de CORS**: Permite configurar orígenes permitidos para solicitudes.
+
+## Requisitos previos
+
+- Node.js (versión 18 o superior, especificada en el archivo `.nvmrc`)
+- Una cuenta de OpenAI con una clave de API válida.
+- Una cuenta de Google Cloud con acceso a la API de Text-to-Speech y una clave de API válida.
+
+## Instalación
+
+1. Clona este repositorio:
+
+   ```bash
+   git clone <URL_DEL_REPOSITORIO>
+   cd generador-cuentos-backend
