@@ -67,7 +67,7 @@ async function getRandomMusicTrack() {
  * @param {number} musicVolume - Background music volume (0-1)
  * @returns {Promise<string>} - Base64 encoded mixed audio
  */
-async function mixAudioWithBackground(ttsAudioBase64, musicTrack = 'random', musicVolume = 0.3) {
+async function mixAudioWithBackground(ttsAudioBase64, musicTrack = 'random', musicVolume = 0.15) {
   try {
     console.log('--------------------------------------------------');
     console.log('🎵 STARTING AUDIO MIXING PROCESS 🎵');

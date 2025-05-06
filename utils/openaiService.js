@@ -165,12 +165,12 @@ function getMaxTokens(length) {
       return 400;
     case 'medium': 
     case 'medio': 
-      return 800;
+      return 1600;
     case 'long': 
     case 'largo': 
-      return 1600;
+      return 2400;
     default: 
-      return 800;
+      return 1600;
   }
 }
 

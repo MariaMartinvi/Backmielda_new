@@ -195,7 +195,7 @@ app.get('/test-mix-audio', async (req, res) => {
     
     // Run ffmpeg command directly
     try {
-      const ffmpegCommand = `ffmpeg -y -i "${testAudioPath}" -i "${musicPath}" -filter_complex "[1:a]volume=0.2,aloop=loop=-1:size=512k[m];[0:a][m]amix=inputs=2:dropout_transition=3" -ac 2 -c:a libmp3lame -b:a 192k "${outputPath}"`;
+      const ffmpegCommand = `ffmpeg -y -i "${testAudioPath}" -i "${musicPath}" -filter_complex "[1:a]volume=0.15,aloop=loop=-1:size=512k[m];[0:a][m]amix=inputs=2:dropout_transition=3" -ac 2 -c:a libmp3lame -b:a 192k "${outputPath}"`;
       
       console.log('Running FFmpeg command:', ffmpegCommand);
       execSync(ffmpegCommand);

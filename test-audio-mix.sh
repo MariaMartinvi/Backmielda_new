@@ -26,7 +26,7 @@ echo "Output: $OUTPUT_PATH"
 
 # Run ffmpeg command
 ffmpeg -y -i "$TTS_AUDIO" -i "$MUSIC_PATH" \
-  -filter_complex "[1:a]volume=0.3,aloop=loop=-1:size=512k[m];[0:a][m]amix=inputs=2:dropout_transition=3" \
+  -filter_complex "[1:a]volume=0.15,aloop=loop=-1:size=512k[m];[0:a][m]amix=inputs=2:dropout_transition=3" \
   -ac 2 -c:a libmp3lame -b:a 192k "$OUTPUT_PATH"
 
 # Check if output was created successfully

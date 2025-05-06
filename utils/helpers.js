@@ -9,13 +9,13 @@ exports.constructPrompt = (params) => {
           lengthDescription = 'very short (exactly 100 words)';
           break;
         case 'medium': 
-          lengthDescription = 'medium length (exactly 300 words)';
+          lengthDescription = 'medium length (exactly 600 words)';
           break;
         case 'long': 
-          lengthDescription = 'long (exactly 600 words)';
+          lengthDescription = 'long (exactly 900 words)';
           break;
         default: 
-          lengthDescription = 'medium length (300 words)';
+          lengthDescription = 'medium length (600 words)';
       }
     } else {
       switch (length) {
@@ -23,13 +23,13 @@ exports.constructPrompt = (params) => {
           lengthDescription = 'muy corta (exactamente 100 palabras)';
           break;
         case 'medio': 
-          lengthDescription = 'de longitud media (exactamente 300 palabras)';
+          lengthDescription = 'de longitud media (exactamente 600 palabras)';
           break;
         case 'largo': 
-          lengthDescription = 'larga (exactamente 600 palabras)';
+          lengthDescription = 'larga (exactamente 900 palabras)';
           break;
         default: 
-          lengthDescription = 'de longitud media (300 palabras)';
+          lengthDescription = 'de longitud media (600 palabras)';
       }
     }
     
@@ -193,7 +193,7 @@ The story should be appropriate for ${ageDescription}.${namesInstruction}${engli
 Use an engaging narrative style, with interesting characters and a coherent plot development.
 Include dialogues and descriptions where appropriate.
 The story should have a clear beginning, development, and conclusion.
-IMPORTANT: The story must be exactly ${length === 'short' ? '100' : length === 'medium' ? '300' : '600'} words.`;
+IMPORTANT: The story must be exactly ${length === 'short' ? '100' : length === 'medium' ? '600' : '900'} words.`;
     } else {
       return `Crea una historia con la siguiente estructura:
 
@@ -204,7 +204,7 @@ La historia debe ser apropiada para ${ageDescription}.${namesInstruction}${engli
 Usa un estilo narrativo atractivo, con personajes interesantes y un desarrollo coherente de la trama.
 Incluye diálogos y descripciones donde sea apropiado.
 La historia debe tener un inicio, desarrollo y conclusión claros.
-IMPORTANTE: La historia debe tener exactamente ${length === 'corto' ? '100' : length === 'medio' ? '300' : '600'} palabras.`;
+IMPORTANTE: La historia debe tener exactamente ${length === 'corto' ? '100' : length === 'medio' ? '600' : '900'} palabras.`;
     }
   };
   
