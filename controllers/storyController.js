@@ -142,7 +142,7 @@ exports.generateAudio = async (req, res, next) => {
     const finalAudioData = await mixAudioWithBackground(
       audioData,
       'random', // Use the random selection functionality
-      0.3  // Fixed volume at 30%
+      0.2  // Fixed volume at 20%
     );
     
     // Return the audio data
@@ -154,7 +154,7 @@ exports.generateAudio = async (req, res, next) => {
         voiceId,
         speechRate,
         musicTrack: 'random', // Indicate that a random track was used
-        musicVolume: 0.3
+        musicVolume: 0.2
       },
       audioGenerations: story.audioGenerations
     });
