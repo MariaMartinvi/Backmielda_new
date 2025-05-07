@@ -2,36 +2,43 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
-const { generateStory, generateAudio } = require('../controllers/storyController');
+const storyController = require('../controllers/storyController');
 
-// Generate story (requires authentication)
-router.post('/generate', auth, async (req, res, next) => {
+// Generate story
+router.post('/generate', storyController.generateStory);
+
+// Generate audio for a story
+router.post('/:storyId/audio', storyController.generateAudio);
+
+// Get remaining stories count for current user
+router.get('/remaining', auth, async (req, res) => {
   try {
-    // Check if user can generate more stories
-    if (!req.user.canGenerateStory()) {
-      return res.status(403).json({
-        message: req.body.language === 'es' 
-          ? 'Has alcanzado tu límite de historias gratuitas. Por favor, suscríbete para generar más historias.'
-          : 'You have reached your story limit. Please subscribe to generate more stories.',
-        requiresSubscription: true
-      });
+    const user = req.user;
+    
+    // Check and reset monthly count if needed
+    user.checkAndResetMonthlyCount();
+    
+    // Calculate remaining stories
+    let storiesRemaining = 0;
+    
+    if (user.subscriptionStatus === 'active') {
+      storiesRemaining = Math.max(0, 30 - user.monthlyStoriesGenerated);
+    } else {
+      storiesRemaining = Math.max(0, 3 - user.storiesGenerated);
     }
-
-    // Generate the story
-    const story = await generateStory(req, res, next);
-
-    // Update user's story count
-    req.user.storiesGenerated += 1;
-    req.user.monthlyStoriesGenerated += 1;
-    await req.user.save();
-
-    res.json(story);
+    
+    res.json({
+      storiesRemaining,
+      totalAllowed: user.subscriptionStatus === 'active' ? 30 : 3,
+      used: user.subscriptionStatus === 'active' ? user.monthlyStoriesGenerated : user.storiesGenerated
+    });
   } catch (error) {
-    next(error);
+    console.error('Error getting remaining stories:', error);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
-// Generate audio for a story
-router.post('/:storyId/audio', generateAudio);
+// Get story by ID
+router.get('/:id', storyController.getStoryById);
 
 module.exports = router;
