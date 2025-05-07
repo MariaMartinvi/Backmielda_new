@@ -33,26 +33,25 @@ exports.generateAudio = async (req, res, next) => {
       speechRate || 1.0
     );
 
-    // Always add background music
-    // Use the provided track, or 'random' if not specified or invalid
-    const selectedMusicTrack = (musicTrack && BACKGROUND_MUSIC_TRACKS[musicTrack]) 
-      ? musicTrack 
-      : 'random'; // Default to random selection
+    let finalAudioData;
+    let usedMusicTrack = musicTrack;
     
-    // Set a reasonable default volume
-    const selectedMusicVolume = musicVolume !== undefined ? musicVolume : 0.1;
-    
-    console.log('Adding background music:', {
-      track: selectedMusicTrack,
-      volume: selectedMusicVolume
-    });
-    
-    // Mix with background music
-    const finalAudioData = await mixAudioWithBackground(
-      audioData,
-      selectedMusicTrack,
-      selectedMusicVolume
-    );
+    // Verificar explícitamente si musicTrack es exactamente "none"
+    if (musicTrack === 'none') {
+      console.log('🔇 No background music requested, returning TTS audio only');
+      finalAudioData = audioData;
+    } else {
+      // Use the specified track or random if not specified
+      usedMusicTrack = musicTrack || 'random';
+      console.log(`🎵 Using background music track: ${usedMusicTrack}`);
+      
+      // Mix with background music
+      finalAudioData = await mixAudioWithBackground(
+        audioData,
+        usedMusicTrack,
+        musicVolume !== undefined ? musicVolume : 0.1
+      );
+    }
     
     // Return audio data (base64 encoded)
     res.status(200).json({
@@ -61,8 +60,8 @@ exports.generateAudio = async (req, res, next) => {
       parameters: {
         voiceId,
         speechRate,
-        musicTrack: selectedMusicTrack,
-        musicVolume: selectedMusicVolume
+        musicTrack: usedMusicTrack,
+        musicVolume: musicTrack === 'none' ? 0 : (musicVolume !== undefined ? musicVolume : 0.1)
       }
     });
   } catch (error) {

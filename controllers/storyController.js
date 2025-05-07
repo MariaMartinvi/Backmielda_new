@@ -100,7 +100,7 @@ exports.generateStory = async (req, res, next) => {
 exports.generateAudio = async (req, res, next) => {
   try {
     const { storyId } = req.params;
-    const { email, voiceId, speechRate } = req.body;
+    const { email, voiceId, speechRate, musicTrack } = req.body;
 
     if (!storyId || !email) {
       return res.status(400).json({ error: 'Story ID and email are required' });
@@ -138,12 +138,25 @@ exports.generateAudio = async (req, res, next) => {
       speechRate || 1.0
     );
     
-    // Mix with random background music (use 'random' to get a random track)
-    const finalAudioData = await mixAudioWithBackground(
-      audioData,
-      'random', // Use the random selection functionality
-      0.1  // Fixed volume at 10%
-    );
+    let finalAudioData;
+    let usedMusicTrack = musicTrack;
+    
+    // Verificar explícitamente si musicTrack es exactamente "none"
+    if (musicTrack === 'none') {
+      console.log('🔇 No background music requested, returning TTS audio only');
+      finalAudioData = audioData;
+    } else {
+      // Use the specified track or random if not specified
+      usedMusicTrack = musicTrack || 'random';
+      console.log(`🎵 Using background music track: ${usedMusicTrack}`);
+      
+      // Mix with background music
+      finalAudioData = await mixAudioWithBackground(
+        audioData,
+        usedMusicTrack,
+        0.1  // Fixed volume at 10%
+      );
+    }
     
     // Return the audio data
     res.status(200).json({
@@ -153,8 +166,8 @@ exports.generateAudio = async (req, res, next) => {
       parameters: {
         voiceId,
         speechRate,
-        musicTrack: 'random', // Indicate that a random track was used
-        musicVolume: 0.1
+        musicTrack: usedMusicTrack, // Return the track that was used
+        musicVolume: musicTrack === 'none' ? 0 : 0.1
       },
       audioGenerations: story.audioGenerations
     });

@@ -72,6 +72,13 @@ async function mixAudioWithBackground(ttsAudioBase64, musicTrack = 'random', mus
     console.log('--------------------------------------------------');
     console.log('🎵 STARTING AUDIO MIXING PROCESS 🎵');
     
+    // Verificación explícita para "none" - no mezclar con música
+    if (musicTrack === 'none') {
+      console.log('🔇 No background music requested (musicTrack === "none")');
+      console.log('--------------------------------------------------');
+      return ttsAudioBase64;
+    }
+    
     // If musicTrack is 'random', pick a random track
     if (musicTrack === 'random') {
       musicTrack = await getRandomMusicTrack();
