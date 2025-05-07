@@ -19,12 +19,15 @@ exports.constructPrompt = (params) => {
       }
     } else {
       switch (length) {
+        case 'short': 
         case 'corto': 
           lengthDescription = 'muy corta (exactamente 100 palabras)';
           break;
+        case 'medium': 
         case 'medio': 
           lengthDescription = 'de longitud media (exactamente 600 palabras)';
           break;
+        case 'long': 
         case 'largo': 
           lengthDescription = 'larga (exactamente 900 palabras)';
           break;
@@ -204,7 +207,7 @@ La historia debe ser apropiada para ${ageDescription}.${namesInstruction}${engli
 Usa un estilo narrativo atractivo, con personajes interesantes y un desarrollo coherente de la trama.
 Incluye diálogos y descripciones donde sea apropiado.
 La historia debe tener un inicio, desarrollo y conclusión claros.
-IMPORTANTE: La historia debe tener exactamente ${length === 'corto' ? '100' : length === 'medio' ? '600' : '900'} palabras.`;
+IMPORTANTE: La historia debe tener exactamente ${length === 'short' || length === 'corto' ? '100' : length === 'medium' || length === 'medio' ? '600' : '900'} palabras.`;
     }
   };
   

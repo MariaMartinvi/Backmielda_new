@@ -67,7 +67,7 @@ async function getRandomMusicTrack() {
  * @param {number} musicVolume - Background music volume (0-1)
  * @returns {Promise<string>} - Base64 encoded mixed audio
  */
-async function mixAudioWithBackground(ttsAudioBase64, musicTrack = 'random', musicVolume = 0.15) {
+async function mixAudioWithBackground(ttsAudioBase64, musicTrack = 'random', musicVolume = 0.1) {
   try {
     console.log('--------------------------------------------------');
     console.log('🎵 STARTING AUDIO MIXING PROCESS 🎵');
@@ -92,10 +92,12 @@ async function mixAudioWithBackground(ttsAudioBase64, musicTrack = 'random', mus
     const ttsAudioPath = path.join(tempDir, `tts-${timestamp}.mp3`);
     const musicPath = path.join(BACKGROUND_MUSIC_DIR, BACKGROUND_MUSIC_TRACKS[musicTrack]);
     const outputPath = path.join(tempDir, `mixed-${timestamp}.mp3`);
+    const loopedMusicPath = path.join(tempDir, `looped-music-${timestamp}.mp3`);
 
     console.log('Paths:');
     console.log('- TTS audio file:', ttsAudioPath);
     console.log('- Music file:', musicPath);
+    console.log('- Looped music file:', loopedMusicPath);
     console.log('- Output file:', outputPath);
     
     // Verify music file exists
@@ -112,24 +114,68 @@ async function mixAudioWithBackground(ttsAudioBase64, musicTrack = 'random', mus
     await fs.writeFile(ttsAudioPath, ttsAudioBuffer);
     console.log(`✅ TTS audio written to temporary file (${ttsAudioBuffer.length} bytes)`);
 
-    // Use direct ffmpeg command to mix audio
-    console.log('🎛️ Starting FFmpeg process...');
+    // First, get the duration of both audio files
+    console.log('📏 Getting audio durations...');
     
-    // Faster ffmpeg command with optimized settings
-    const ffmpegCommand = `ffmpeg -y -i "${ttsAudioPath}" -i "${musicPath}" -filter_complex "[1:a]volume=${musicVolume}[m];[0:a][m]amix=inputs=2:dropout_transition=1" -c:a libmp3lame -q:a 4 -ac 2 "${outputPath}"`;
+    // Get TTS audio duration
+    const ttsInfoCommand = `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${ttsAudioPath}"`;
+    const { stdout: ttsDurationStr } = await execPromise(ttsInfoCommand);
+    const ttsDuration = parseFloat(ttsDurationStr.trim());
     
-    console.log('🔧 FFmpeg command:', ffmpegCommand);
+    // Get background music duration
+    const musicInfoCommand = `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${musicPath}"`;
+    const { stdout: musicDurationStr } = await execPromise(musicInfoCommand);
+    const musicDuration = parseFloat(musicDurationStr.trim());
     
-    try {
-      // Set a timeout for the FFmpeg process (2 minutes)
-      const { stdout, stderr } = await execPromise(ffmpegCommand, { timeout: 120000 });
-      console.log('FFmpeg stderr:', stderr);
-      console.log('✅ FFmpeg process completed successfully');
-    } catch (error) {
-      console.error('❌ FFmpeg process error:', error);
-      // Don't throw here, just log the error and continue with original audio
-      console.log('⚠️ Returning original audio due to mixing error');
-      return ttsAudioBase64;
+    console.log(`📊 TTS Duration: ${ttsDuration} seconds`);
+    console.log(`📊 Music Duration: ${musicDuration} seconds`);
+    
+    // Create a looped version of the background music if needed
+    if (ttsDuration > musicDuration) {
+      console.log('🔄 TTS is longer than music, creating looped background music...');
+      
+      // Calculate how many times we need to loop the music
+      const loopCount = Math.ceil(ttsDuration / musicDuration);
+      console.log(`🔢 Need to loop music ${loopCount} times`);
+      
+      // Create a file with concatenated music to cover the TTS duration
+      const concatCommand = `ffmpeg -y -stream_loop ${loopCount - 1} -i "${musicPath}" -c copy "${loopedMusicPath}"`;
+      await execPromise(concatCommand);
+      console.log('✅ Created looped background music');
+      
+      // Use the looped music file for mixing
+      console.log('🎛️ Starting FFmpeg process with looped music...');
+      const ffmpegCommand = `ffmpeg -y -i "${ttsAudioPath}" -i "${loopedMusicPath}" -filter_complex "[1:a]volume=${musicVolume}[m];[0:a][m]amix=inputs=2:dropout_transition=1" -c:a libmp3lame -q:a 4 -ac 2 -t ${ttsDuration} "${outputPath}"`;
+      console.log('🔧 FFmpeg command:', ffmpegCommand);
+      
+      try {
+        // Set a timeout for the FFmpeg process (2 minutes)
+        const { stdout, stderr } = await execPromise(ffmpegCommand, { timeout: 120000 });
+        console.log('FFmpeg stderr:', stderr);
+        console.log('✅ FFmpeg process completed successfully');
+      } catch (error) {
+        console.error('❌ FFmpeg process error:', error);
+        // Don't throw here, just log the error and continue with original audio
+        console.log('⚠️ Returning original audio due to mixing error');
+        return ttsAudioBase64;
+      }
+    } else {
+      // Use direct ffmpeg command to mix audio (original method)
+      console.log('🎛️ Starting FFmpeg process with original music...');
+      const ffmpegCommand = `ffmpeg -y -i "${ttsAudioPath}" -i "${musicPath}" -filter_complex "[1:a]volume=${musicVolume}[m];[0:a][m]amix=inputs=2:dropout_transition=1" -c:a libmp3lame -q:a 4 -ac 2 "${outputPath}"`;
+      console.log('🔧 FFmpeg command:', ffmpegCommand);
+      
+      try {
+        // Set a timeout for the FFmpeg process (2 minutes)
+        const { stdout, stderr } = await execPromise(ffmpegCommand, { timeout: 120000 });
+        console.log('FFmpeg stderr:', stderr);
+        console.log('✅ FFmpeg process completed successfully');
+      } catch (error) {
+        console.error('❌ FFmpeg process error:', error);
+        // Don't throw here, just log the error and continue with original audio
+        console.log('⚠️ Returning original audio due to mixing error');
+        return ttsAudioBase64;
+      }
     }
 
     // Verify the output file exists and has content
@@ -157,7 +203,9 @@ async function mixAudioWithBackground(ttsAudioBase64, musicTrack = 'random', mus
     try {
       await Promise.all([
         fs.unlink(ttsAudioPath),
-        fs.unlink(outputPath)
+        fs.unlink(outputPath),
+        // Also clean up the looped music file if it was created
+        fs.access(loopedMusicPath).then(() => fs.unlink(loopedMusicPath)).catch(() => {})
       ]);
       console.log('🧹 Temporary files cleaned up');
     } catch (cleanupError) {

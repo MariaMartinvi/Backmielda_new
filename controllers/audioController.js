@@ -40,7 +40,7 @@ exports.generateAudio = async (req, res, next) => {
       : 'random'; // Default to random selection
     
     // Set a reasonable default volume
-    const selectedMusicVolume = musicVolume !== undefined ? musicVolume : 0.2;
+    const selectedMusicVolume = musicVolume !== undefined ? musicVolume : 0.1;
     
     console.log('Adding background music:', {
       track: selectedMusicTrack,
