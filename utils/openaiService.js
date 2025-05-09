@@ -1,5 +1,52 @@
 // utils/openaiService.js
 const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
+
+// Function to log critical errors that require admin attention
+const notifyAdminOfCriticalError = async (errorMessage) => {
+  try {
+    // Log to a special error file
+    const errorLog = `[${new Date().toISOString()}] CRITICAL ERROR: ${errorMessage}\n`;
+    const errorLogPath = path.join(__dirname, '..', 'logs');
+    
+    // Create logs directory if it doesn't exist
+    if (!fs.existsSync(errorLogPath)) {
+      fs.mkdirSync(errorLogPath, { recursive: true });
+    }
+    
+    // Append to critical-errors.log
+    fs.appendFileSync(
+      path.join(errorLogPath, 'critical-errors.log'), 
+      errorLog
+    );
+    
+    // If configured, send an alert via webhook (Slack, Discord, etc.)
+    if (process.env.ADMIN_WEBHOOK_URL) {
+      await axios.post(process.env.ADMIN_WEBHOOK_URL, {
+        text: `🚨 CRITICAL ALERT: ${errorMessage}`,
+        attachments: [{
+          title: 'OpenAI API Quota Exceeded',
+          text: 'The OpenAI API key has insufficient quota. The story generation service is down.',
+          color: 'danger'
+        }]
+      }).catch(err => console.error('Failed to send webhook notification:', err.message));
+    }
+    
+    // If configured, send an email alert
+    if (process.env.ADMIN_EMAIL) {
+      // Simple implementation - in a real app you'd use a proper email service
+      console.log(`🚨 Would send email to ${process.env.ADMIN_EMAIL}: CRITICAL ALERT - OpenAI API Quota Exceeded`);
+    }
+    
+    console.log('✅ Admin notification sent for critical error');
+  } catch (error) {
+    console.error('Failed to notify admin:', error);
+  }
+};
+
+// Export the notification function for use in other modules
+exports.notifyAdminOfCriticalError = notifyAdminOfCriticalError;
 
 exports.generateCompletion = async (prompt, storyParams) => {
   try {
@@ -7,6 +54,16 @@ exports.generateCompletion = async (prompt, storyParams) => {
     const temperature = getTemperature(storyParams.creativityLevel);
     
     console.log('storyParams recibidos:', JSON.stringify(storyParams));
+    console.log('OpenAI request - maxTokens:', maxTokens, 'temperature:', temperature);
+
+    // Verificar que la API key existe
+    if (!process.env.OPENAI_API_KEY) {
+      console.error('ERROR CRÍTICO: OPENAI_API_KEY no está configurada');
+      throw new Error('OpenAI API key is missing');
+    }
+
+    // Log the first few characters of the API key for debugging
+    console.log('Using OpenAI API Key (first 5 chars):', process.env.OPENAI_API_KEY.substring(0, 5) + '...');
 
     // Construir el mensaje del sistema basado en el idioma y nivel de inglés
     let systemMessage;
@@ -117,40 +174,100 @@ Example of incorrect sentences (DO NOT USE):
       systemMessage = 'Eres un creativo escritor de cuentos en español. Crea historias originales, coherentes y cautivadoras.';
     }
     
-    const response = await axios.post('https://api.openai.com/v1/chat/completions', {
-      model: 'gpt-3.5-turbo',
-      messages: [
-        {
-          role: 'system',
-          content: systemMessage
-        },
-        {
-          role: 'user',
-          content: prompt
-        }
-      ],
-      max_tokens: maxTokens,
-      temperature: temperature,
-      top_p: 1,
-      frequency_penalty: 0.2,
-      presence_penalty: 0.6
-    }, {
-      headers: {
-        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-        'Content-Type': 'application/json'
-      }
-    });
+    // Create a timeout for the API request
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
     
-    return response.data.choices[0].message.content.trim();
+    try {
+      console.log('Sending request to OpenAI API...');
+      const response = await axios.post('https://api.openai.com/v1/chat/completions', {
+        model: 'gpt-3.5-turbo',
+        messages: [
+          {
+            role: 'system',
+            content: systemMessage
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        max_tokens: maxTokens,
+        temperature: temperature,
+        top_p: 1,
+        frequency_penalty: 0.2,
+        presence_penalty: 0.6
+      }, {
+        headers: {
+          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
+      console.log('OpenAI API response status:', response.status);
+      console.log('OpenAI API usage:', JSON.stringify(response.data.usage));
+      
+      if (!response.data || !response.data.choices || response.data.choices.length === 0) {
+        console.error('OpenAI API returned empty response:', JSON.stringify(response.data));
+        throw new Error('OpenAI API returned empty response');
+      }
+      
+      return response.data.choices[0].message.content.trim();
+    } catch (error) {
+      clearTimeout(timeoutId);
+      throw error;
+    }
   } catch (error) {
-    console.error('OpenAI API Error:', error.response?.data || error.message);
+    // Detailed error logging
+    console.error('⚠️ OpenAI API Error:', error.message);
+    
+    if (error.response) {
+      // La solicitud fue realizada y el servidor respondió con un código de error
+      console.error('OpenAI API response error status:', error.response.status);
+      console.error('OpenAI API response error data:', JSON.stringify(error.response.data));
+      console.error('OpenAI API response error headers:', JSON.stringify(error.response.headers));
+    } else if (error.request) {
+      // La solicitud fue realizada pero no se recibió respuesta
+      console.error('OpenAI API request error (no response):', error.request);
+    } else if (error.code === 'ECONNABORTED' || error.name === 'AbortError') {
+      // Timeout error
+      console.error('OpenAI API request timed out');
+      throw new Error('OpenAI API request timed out. Please try again.');
+    }
     
     // Enhanced error handling
     if (error.response?.status === 429) {
+      console.error('OpenAI rate limit exceeded');
+      
+      // Check specifically for insufficient quota errors
+      if (error.response?.data?.error?.code === 'insufficient_quota' || 
+          (error.response?.data?.error?.message && error.response?.data?.error?.message.includes('exceeded your current quota'))) {
+        console.error('🚫 OpenAI API QUOTA EXCEEDED - BILLING ISSUE DETECTED');
+        console.error('This requires immediate attention - the API key has run out of credits or reached its usage limit');
+        
+        // Notify administrators about this critical error
+        await notifyAdminOfCriticalError(
+          `OpenAI API quota exceeded. The API key has insufficient quota. Error details: ${JSON.stringify(error.response?.data || {})}`
+        );
+        
+        throw new Error('OpenAI API quota exceeded. The API key has insufficient quota. Please check billing details.');
+      }
+      
       throw new Error('OpenAI rate limit exceeded. Please try again later.');
     } else if (error.response?.status === 401) {
+      console.error('OpenAI API authentication error - invalid API key');
       throw new Error('Authentication error with OpenAI API. Check your API key.');
+    } else if (error.response?.status === 400) {
+      console.error('OpenAI API bad request error:', error.response.data);
+      throw new Error('Bad request to OpenAI API: ' + (error.response.data?.error?.message || 'unknown error'));
+    } else if (error.response?.status >= 500) {
+      console.error('OpenAI API server error:', error.response.status);
+      throw new Error('OpenAI API server error. Please try again later.');
     } else {
+      console.error('Unknown OpenAI API error:', error);
       throw new Error('Failed to generate story with OpenAI: ' + (error.response?.data?.error?.message || error.message));
     }
   }
@@ -196,3 +313,151 @@ function getTemperature(creativityLevel) {
       return 0.7;
   }
 }
+
+// Test OpenAI API connection
+exports.testConnection = async () => {
+  try {
+    // Verify API key exists
+    if (!process.env.OPENAI_API_KEY) {
+      throw new Error('OpenAI API key is missing');
+    }
+    
+    // Simple request to test API access
+    const response = await axios.post('https://api.openai.com/v1/chat/completions', {
+      model: 'gpt-3.5-turbo',
+      messages: [
+        {
+          role: 'user',
+          content: 'Hello, this is a connection test.'
+        }
+      ],
+      max_tokens: 5, // Minimal tokens for test
+      temperature: 0.0
+    }, {
+      headers: {
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 5000 // 5 second timeout for health check
+    });
+    
+    if (response.status !== 200) {
+      throw new Error(`OpenAI API returned status code ${response.status}`);
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('OpenAI connection test failed:', error.message);
+    
+    if (error.response?.status === 429) {
+      if (error.response?.data?.error?.code === 'insufficient_quota' || 
+          (error.response?.data?.error?.message && 
+           error.response?.data?.error?.message.includes('exceeded your current quota'))) {
+        throw new Error('OpenAI API quota exceeded');
+      } else {
+        throw new Error('OpenAI API rate limit exceeded');
+      }
+    } else if (error.response?.status === 401) {
+      throw new Error('Invalid OpenAI API key');
+    } else if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+      throw new Error('OpenAI API connection timeout');
+    }
+    
+    throw new Error(`OpenAI API connection failed: ${error.message}`);
+  }
+};
+
+// OpenAI API status check
+exports.checkOpenAIStatus = async () => {
+  const statusResult = {
+    status: 'unknown',
+    message: null,
+    details: null,
+    lastChecked: new Date().toISOString()
+  };
+  
+  try {
+    // Step 1: Check if API key is configured
+    if (!process.env.OPENAI_API_KEY) {
+      statusResult.status = 'not_configured';
+      statusResult.message = 'OpenAI API key is not configured';
+      return statusResult;
+    }
+    
+    // Step 2: Make a minimal API request
+    console.log('Testing OpenAI API connection...');
+    const response = await axios.post('https://api.openai.com/v1/chat/completions', {
+      model: 'gpt-3.5-turbo',
+      messages: [
+        {
+          role: 'user',
+          content: 'Return the word OK if you are working.'
+        }
+      ],
+      max_tokens: 5, // Minimal tokens for test
+      temperature: 0.0
+    }, {
+      headers: {
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 5000 // 5 second timeout for health check
+    });
+    
+    // Step 3: Check response
+    if (response.status === 200 && response.data?.choices?.length > 0) {
+      statusResult.status = 'ok';
+      statusResult.message = 'OpenAI API is responding correctly';
+      statusResult.details = {
+        response: response.data.choices[0].message.content.trim(),
+        model: response.data.model,
+        usage: response.data.usage
+      };
+      return statusResult;
+    } else {
+      statusResult.status = 'degraded';
+      statusResult.message = 'OpenAI API responded with unexpected format';
+      statusResult.details = { status: response.status };
+      return statusResult;
+    }
+  } catch (error) {
+    // Step 4: Handle error responses
+    statusResult.status = 'error';
+    
+    if (error.response) {
+      // OpenAI API responded with an error
+      statusResult.details = {
+        status: error.response.status,
+        data: error.response.data
+      };
+      
+      // Check for specific error types
+      if (error.response.status === 429) {
+        if (error.response?.data?.error?.code === 'insufficient_quota' || 
+            (error.response?.data?.error?.message && 
+             error.response?.data?.error?.message.includes('exceeded your current quota'))) {
+          statusResult.status = 'quota_exceeded';
+          statusResult.message = 'OpenAI API quota has been exceeded';
+        } else {
+          statusResult.status = 'rate_limited';
+          statusResult.message = 'OpenAI API rate limit exceeded';
+        }
+      } else if (error.response.status === 401) {
+        statusResult.status = 'authentication_error';
+        statusResult.message = 'OpenAI API authentication failed (invalid API key)';
+      } else if (error.response.status >= 500) {
+        statusResult.status = 'service_unavailable';
+        statusResult.message = 'OpenAI API service is unavailable';
+      } else {
+        statusResult.message = `OpenAI API error: ${error.message}`;
+      }
+    } else if (error.code === 'ECONNABORTED' || error.name === 'AbortError') {
+      statusResult.status = 'timeout';
+      statusResult.message = 'OpenAI API request timed out';
+    } else {
+      statusResult.message = `OpenAI API connection error: ${error.message}`;
+    }
+    
+    return statusResult;
+  }
+};

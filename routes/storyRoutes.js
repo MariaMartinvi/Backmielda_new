@@ -10,6 +10,9 @@ router.post('/generate', storyController.generateStory);
 // Generate audio for a story
 router.post('/:storyId/audio', storyController.generateAudio);
 
+// OpenAI API Health check
+router.get('/health/openai', storyController.healthCheck);
+
 // Get remaining stories count for current user
 router.get('/remaining', auth, async (req, res) => {
   try {

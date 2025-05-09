@@ -1,6 +1,10 @@
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { OAuth2Client } = require('google-auth-library'); // Import Google Auth Library
+
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID; // Make sure this is set in your backend .env
+const client = new OAuth2Client(GOOGLE_CLIENT_ID);
 
 const register = async (req, res) => {
   try {
@@ -229,54 +233,101 @@ const getCurrentUser = async (req, res) => {
 
 const loginWithGoogle = async (req, res) => {
   try {
-    const { email, googleId } = req.body;
+    const { idToken } = req.body; // Expect idToken from frontend
 
-    if (!email || !googleId) {
+    if (!idToken) {
       return res.status(400).json({ 
         error: 'Validation error',
-        details: 'Email and Google ID are required'
+        details: 'ID token is required'
+      });
+    }
+
+    // Verify the ID token with Google
+    let ticket;
+    try {
+      ticket = await client.verifyIdToken({
+          idToken: idToken,
+          audience: GOOGLE_CLIENT_ID,  // Specify the CLIENT_ID of the app that accesses the backend
+      });
+    } catch (verifyError) {
+      console.error('Google ID token verification error:', verifyError);
+      return res.status(401).json({
+        error: 'Authentication error',
+        details: 'Invalid Google ID token'
+      });
+    }
+
+    const payload = ticket.getPayload();
+    const googleId = payload['sub'];
+    const email = payload['email'];
+    const emailVerified = payload['email_verified'];
+    // const name = payload['name']; // Optional: if you want to store name
+
+    if (!emailVerified) {
+      return res.status(401).json({
+        error: 'Authentication error',
+        details: 'Google email not verified'
       });
     }
 
     // Find or create user
     let user = await User.findOne({ email });
     if (!user) {
-      user = await User.create({
+      user = new User({
         email,
-        googleId,
-        isVerified: true // Google accounts are pre-verified
+        googleId, // Store Google ID
+        isVerified: true, // Email is verified by Google
+        // name: name, // Optionally store name
+        // You might not have a password, or set a strong random one if your model requires it
+        // or adjust your User model to allow no local password for Google users
       });
-    } else if (!user.googleId) {
-      // Link existing account with Google
-      user.googleId = googleId;
-      user.isVerified = true;
       await user.save();
+      console.log('New user created via Google:', email);
+    } else {
+      // User exists, ensure Google ID is linked if they previously signed up with email/password
+      if (!user.googleId) {
+        user.googleId = googleId;
+        user.isVerified = true; // Mark as verified if logging in with Google
+        await user.save();
+        console.log('Existing user linked with Google:', email);
+      }
+      // Security check: if the existing user's googleId doesn't match, it's an issue.
+      else if (user.googleId !== googleId) {
+        console.error('Google ID mismatch for user:', email);
+        return res.status(403).json({
+          error: 'Authentication error',
+          details: 'Google account mismatch.'
+        });
+      }
+      console.log('User found via Google:', email);
     }
 
-    // Generate JWT token
-    const token = jwt.sign(
+    // Generate JWT token for your application
+    const appToken = jwt.sign(
       { 
         id: user._id,
         email: user.email,
-        isPremium: user.isPremium,
+        isPremium: user.isPremium, // Ensure these fields are populated correctly
         subscriptionStatus: user.subscriptionStatus
       },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
     );
 
-    res.json({
-      token,
+    res.status(200).json({
+      token: appToken,
       user: {
         id: user._id,
         email: user.email,
         storiesGenerated: user.storiesGenerated,
         subscriptionStatus: user.subscriptionStatus,
-        isPremium: user.subscriptionStatus === 'active'
+        isPremium: user.isPremium || (user.subscriptionStatus === 'active')
+        // name: user.name // Send name if stored
       }
     });
+
   } catch (error) {
-    console.error('Google login error:', error);
+    console.error('Google login controller error:', error);
     res.status(500).json({ 
       error: 'Server error',
       details: error.message

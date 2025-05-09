@@ -236,7 +236,18 @@ console.log('Subscription routes registered');
 
 // Health check route
 app.get('/api/health', (req, res) => {
-  res.status(200).json({ status: 'ok' });
+  // Basic health check that just returns service availability
+  // For a detailed OpenAI health check, use /api/stories/health/openai
+  const healthInfo = {
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development',
+    api_version: '1.0',
+    openai_api_configured: !!process.env.OPENAI_API_KEY,
+    message: 'For a detailed OpenAI API health check, use /api/stories/health/openai'
+  };
+  
+  res.status(200).json(healthInfo);
 });
 
 // Error handling middleware
