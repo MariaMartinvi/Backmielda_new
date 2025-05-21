@@ -43,6 +43,7 @@ const googleAuthRoutes = require('./routes/auth');
 const stripeRoutes = require('./routes/stripeRoutes');
 const audioRoutes = require('./routes/audioRoutes');
 const subscriptionRoutes = require('./routes/subscriptionRoutes');
+const newsletterRoutes = require('./routes/newsletterRoutes');
 
 // Create Express app - THIS MUST COME BEFORE TRYING TO ACCESS app._router!
 const app = express();
@@ -233,6 +234,8 @@ app.use('/api/audio', audioRoutes);
 console.log('Audio routes registered');
 app.use('/api/subscription', subscriptionRoutes);
 console.log('Subscription routes registered');
+app.use('/api/newsletter', newsletterRoutes);
+console.log('Newsletter routes registered');
 
 // Health check route
 app.get('/api/health', (req, res) => {
@@ -297,10 +300,21 @@ app.use('*', (req, res) => {
   });
 });
 
+// Debug middleware para ver todas las rutas registradas
+app._router.stack.forEach(function(r){
+    if (r.route && r.route.path){
+        console.log('Route:', r.route.stack[0].method.toUpperCase(), r.route.path);
+    }
+});
+
 // Start server
-const PORT = process.env.PORT || 10000; // Make sure this matches what's in your Render config
+const PORT = process.env.PORT || 5001;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`API URL: http://localhost:${PORT}/api`);
+  console.log('Available routes:');
+  app._router.stack.forEach(function(r){
+    if (r.route && r.route.path){
+      console.log(`${r.route.stack[0].method.toUpperCase()} ${r.route.path}`);
+    }
+  });
 });

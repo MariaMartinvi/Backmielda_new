@@ -1,6 +1,6 @@
 // utils/helpers.js
 exports.constructPrompt = (params) => {
-    const { topic, length, storyType, creativityLevel, ageGroup, childNames, englishLevel, language } = params;
+    const { topic, length, storyType, creativityLevel, ageGroup, childNames, englishLevel, spanishLevel, language } = params;
     
     let lengthDescription;
     if (language === 'en') {
@@ -68,123 +68,147 @@ exports.constructPrompt = (params) => {
     }
 
     let englishLevelInstruction = '';
-    if (language === 'en') {
+    if (language === 'en' && englishLevel) {
+      // Detailed English level instructions
       switch (englishLevel) {
         case 'basic':
-          englishLevelInstruction = `
-IMPORTANT: Use ONLY these words in English:
-- Verbs: be, have, do, say, get, make, go, know, take, see, come, think, look, want, give, use, find, tell, ask, work, seem, feel, try, leave, call
-- Pronouns: I, you, he, she, it, we, they
-- Articles: a, an, the
-
-STRICT RULES:
-1. Use ONLY simple present tense (I go, you see, he likes)
-2. Maximum 3 words per sentence
-3. No contractions (use "do not" not "don't")
-4. No adjectives or adverbs
-5. No idioms or expressions
-6. No past or future tense
-7. No questions
-8. No complex sentences
-
-Example of how it should be:
-"I see a cat. The cat is big. I like the cat. The cat likes me."
-
-DO NOT use sentences like:
-"I was walking in the park (past tense)
-The beautiful cat runs quickly (adjectives and adverbs)
-I don't like cats (contraction)
-What do you see? (question)
-The cat that I like is big (complex sentence)"`;
+          englishLevelInstruction = `\nUse BASIC ENGLISH (A1-A2 level) with these strict rules:
+- Use only the 500 most common English words
+- Keep sentences very short (3-6 words)
+- Use only simple present and simple past tenses
+- Avoid phrasal verbs, idioms, or slang
+- Use simple sentence structures (subject + verb + object)
+- Repeat key vocabulary frequently
+- Use basic conjunctions only (and, but, or)
+- Keep paragraphs short (2-3 sentences maximum)`;
           break;
         case 'intermediate':
-          englishLevelInstruction = `
-Use intermediate vocabulary (B1-B2 level) with these characteristics:
-- You can use all basic verb tenses (present, past, future)
-- You can use common adverbs (quickly, slowly, well, badly)
-- You can use some common idiomatic expressions
-- You can use longer phrases (up to 10 words)
-- You can use contractions (I'm, don't, can't)
-- You can use more descriptive adjectives
-
-Example of intermediate level:
-"I was walking in the park when I saw a beautiful butterfly. It was flying quickly from flower to flower. I wanted to take a picture, but my phone was at home."`;
+          englishLevelInstruction = `\nUse INTERMEDIATE ENGLISH (B1-B2 level) with these guidelines:
+- Use common vocabulary (2000-3000 most frequent words)
+- Include some descriptive adjectives and adverbs
+- Use basic tenses (present, past, future, present perfect)
+- Include some compound and complex sentences
+- Use common phrasal verbs and idiomatic expressions
+- Keep sentences moderate in length (8-12 words average)
+- Use connectors to link ideas (however, therefore, because)
+- Include some conditional sentences (first and second conditional)`;
           break;
         case 'advanced':
-          englishLevelInstruction = `
-Use advanced vocabulary (C1-C2 level) with these characteristics:
-- Use all verb tenses, including perfect and continuous forms
-- Use idiomatic expressions and idioms
-- Use complex and subordinate phrases
-- Use sophisticated and specific vocabulary
-- Use figurative language and metaphors
-- Use different language styles according to context
-
-Example of advanced level:
-"As the golden rays of the setting sun cast long shadows across the meadow, a kaleidoscope of butterflies danced in the crisp autumn air, their delicate wings creating a mesmerizing spectacle of color and motion."`;
+          englishLevelInstruction = `\nUse ADVANCED ENGLISH (C1-C2 level) with these characteristics:
+- Use rich and varied vocabulary, including less common words
+- Include sophisticated language features (metaphors, analogies)
+- Use all tense forms, including perfect continuous and conditionals
+- Vary sentence structure and length intentionally for effect
+- Use advanced discourse markers and cohesive devices
+- Include colloquialisms and idiomatic expressions where appropriate
+- Use nuanced language that conveys subtle meaning
+- Demonstrate mastery of complex grammatical structures`;
           break;
         default:
-          englishLevelInstruction = '\nUse intermediate English vocabulary.';
+          englishLevelInstruction = `\nUse intermediate level English vocabulary and grammar.`;
       }
-    } else {
-      switch (englishLevel) {
-        case 'basic':
-          englishLevelInstruction = `
-IMPORTANTE: Usa SOLO estas palabras en inglés:
-- Verbos: be, have, do, say, get, make, go, know, take, see, come, think, look, want, give, use, find, tell, ask, work, seem, feel, try, leave, call
-- Pronombres: I, you, he, she, it, we, they
-- Artículos: a, an, the
-
-REGLAS ESTRICTAS:
-1. Usa SOLO el presente simple (I go, you see, he likes)
-2. Máximo 3 palabras por frase
-3. No uses contracciones (usa "do not" no "don't")
-4. No uses adjetivos ni adverbios
-5. No uses modismos ni expresiones
-6. No uses pasado ni futuro
-7. No uses preguntas
-8. No uses oraciones complejas
-
-Ejemplo de cómo debe ser:
-"I see a cat. The cat is big. I like the cat. The cat likes me."
-
-NO uses frases como:
-"I was walking in the park (pasado)
-The beautiful cat runs quickly (adjetivos y adverbios)
-I don't like cats (contracción)
-What do you see? (pregunta)
-The cat that I like is big (oración compleja)"`;
-          break;
-        case 'intermediate':
-          englishLevelInstruction = `
-Usa un vocabulario intermedio (nivel B1-B2) con estas características:
-- Puedes usar todos los tiempos verbales básicos (presente, pasado, futuro)
-- Puedes usar adverbios comunes (quickly, slowly, well, badly)
-- Puedes usar algunas expresiones idiomáticas comunes
-- Puedes usar frases más largas (hasta 10 palabras)
-- Puedes usar contracciones (I'm, don't, can't)
-- Puedes usar adjetivos más descriptivos
-
-Ejemplo de nivel intermedio:
-"I was walking in the park when I saw a beautiful butterfly. It was flying quickly from flower to flower. I wanted to take a picture, but my phone was at home."`;
-          break;
-        case 'advanced':
-          englishLevelInstruction = `
-Usa un vocabulario avanzado (nivel C1-C2) con estas características:
-- Usa todos los tiempos verbales, incluyendo perfectos y continuos
-- Usa expresiones idiomáticas y modismos
-- Usa frases complejas y subordinadas
-- Usa vocabulario sofisticado y específico
-- Usa lenguaje figurativo y metáforas
-- Usa diferentes estilos de lenguaje según el contexto
-
-Ejemplo de nivel avanzado:
-"As the golden rays of the setting sun cast long shadows across the meadow, a kaleidoscope of butterflies danced in the crisp autumn air, their delicate wings creating a mesmerizing spectacle of color and motion."`;
-          break;
-        default:
-          englishLevelInstruction = '\nUsa un vocabulario intermedio en inglés.';
+    } else if (language === 'es' && englishLevel) {
+      // Para historias en español, no incluir instrucciones de nivel de inglés
+      // que afecten a toda la historia - la historia principal debe estar en español
+      englishLevelInstruction = '';
+    }
+    
+    // Add Spanish level instructions
+    let spanishLevelInstruction = '';
+    if (spanishLevel) {
+      if (language === 'en') {
+        // English reference to Spanish level
+        switch (spanishLevel) {
+          case 'basic':
+            spanishLevelInstruction = `\nUse BASIC SPANISH (A1-A2 level) with these strict rules:
+- Use only the 300 most common Spanish words
+- Sentences must be very short (2-5 words maximum)
+- Use only present tense (no past or future tenses)
+- No subjunctive or conditional forms
+- Only use "ser", "estar", "tener" and "hacer" as auxiliary verbs
+- No subordinate clauses or complex structures
+- No idiomatic expressions or metaphors
+- Repetitive vocabulary and simple sentence patterns
+- Text should resemble language for absolute beginners`;
+            break;
+          case 'intermediate':
+            spanishLevelInstruction = `\nUse INTERMEDIATE SPANISH (B1-B2 level) with these guidelines:
+- Use common vocabulary (1000-2000 most frequent words)
+- Include descriptive adjectives and some adverbs
+- Use present, past (preterite and imperfect) and simple future tenses
+- Begin using present perfect tense occasionally
+- Include basic compound sentences with conjunctions
+- Use some common expressions (pero no demasiadas)
+- Keep sentences moderate in length (6-10 words average)
+- Use basic connectors (además, sin embargo, porque)
+- Include occasional simple subjunctive forms`;
+            break;
+          case 'advanced':
+            spanishLevelInstruction = `\nUse ADVANCED SPANISH (C1-C2 level) with these characteristics:
+- Use rich and varied vocabulary, including less common words
+- Include sophisticated language features (metaphors, analogies)
+- Use all tense forms, including subjunctive and conditional forms
+- Vary sentence structure and length intentionally for effect
+- Use advanced discourse markers and cohesive devices
+- Include colloquialisms and idiomatic expressions where appropriate
+- Use nuanced language that conveys subtle meaning
+- Demonstrate mastery of complex grammatical structures`;
+            break;
+          default:
+            spanishLevelInstruction = `\nUse intermediate level Spanish vocabulary and grammar.`;
+        }
+      } else {
+        // Spanish instructions for Spanish levels
+        switch (spanishLevel) {
+          case 'basic':
+            spanishLevelInstruction = `\nUsa ESPAÑOL BÁSICO (nivel A1-A2) con estas reglas estrictas:
+- Utiliza solo las 300 palabras más comunes del español
+- Oraciones muy cortas (máximo 2-5 palabras)
+- Usa solamente el tiempo presente (no pasado ni futuro)
+- No uses subjuntivo ni condicional
+- Solo verbos auxiliares "ser", "estar", "tener" y "hacer"
+- Sin oraciones subordinadas ni estructuras complejas
+- Sin expresiones idiomáticas ni metáforas
+- Vocabulario repetitivo y patrones de oraciones simples
+- El texto debe parecerse al lenguaje para principiantes absolutos`;
+            break;
+          case 'intermediate':
+            spanishLevelInstruction = `\nUsa ESPAÑOL INTERMEDIO (nivel B1-B2) con estas pautas:
+- Utiliza vocabulario común (1000-2000 palabras más frecuentes)
+- Incluye adjetivos descriptivos y algunos adverbios
+- Usa presente, pasado (pretérito e imperfecto) y futuro simple
+- Comienza a usar el pretérito perfecto ocasionalmente
+- Incluye oraciones compuestas básicas con conjunciones
+- Usa algunas expresiones comunes (pero no demasiadas)
+- Mantén las oraciones de longitud moderada (promedio de 6-10 palabras)
+- Usa conectores básicos (además, sin embargo, porque)
+- Incluye ocasionalmente formas simples de subjuntivo`;
+            break;
+          case 'advanced':
+            spanishLevelInstruction = `\nUsa ESPAÑOL AVANZADO (nivel C1-C2) con estas características:
+- Utiliza vocabulario rico y variado, incluyendo palabras menos comunes
+- Incluye características lingüísticas sofisticadas (metáforas, analogías)
+- Usa todas las formas verbales, incluyendo subjuntivo y formas condicionales
+- Varía la estructura y longitud de las oraciones intencionalmente para lograr efectos
+- Usa marcadores discursivos avanzados y dispositivos cohesivos
+- Incluye coloquialismos y expresiones idiomáticas cuando sea apropiado
+- Usa lenguaje matizado que transmita significados sutiles
+- Demuestra dominio de estructuras gramaticales complejas`;
+            break;
+          default:
+            spanishLevelInstruction = `\nUsa vocabulario y gramática de español de nivel intermedio.`;
+        }
       }
     }
+    
+    // Si estamos en idioma español y hay un nivel de inglés,
+    // añadir instrucción de que la historia principal debe estar en español
+    let languageInstruction = '';
+    if (language === 'es' && englishLevel) {
+      languageInstruction = `\nIMPORTANTE: La historia completa debe estar en ESPAÑOL. No escribas la historia en inglés.`;
+    }
+    
+    const levelInstructions = englishLevelInstruction + spanishLevelInstruction + languageInstruction;
     
     if (language === 'en') {
       return `Create a story with the following structure:
@@ -192,7 +216,7 @@ Ejemplo de nivel avanzado:
 [Write a creative, engaging, and short title here. Do not include any labels or asterisks.]
 
 Write a ${lengthDescription} ${storyType} story about "${topic}". 
-The story should be appropriate for ${ageDescription}.${namesInstruction}${englishLevelInstruction}
+The story should be appropriate for ${ageDescription}.${namesInstruction}${levelInstructions}
 Use an engaging narrative style, with interesting characters and a coherent plot development.
 Include dialogues and descriptions where appropriate.
 The story should have a clear beginning, development, and conclusion.
@@ -203,7 +227,7 @@ IMPORTANT: The story must be exactly ${length === 'short' ? '100' : length === '
 [Escribe un título creativo, atractivo y corto aquí. No incluyas etiquetas ni asteriscos.]
 
 Escribe una historia ${lengthDescription} de género ${storyType} sobre "${topic}". 
-La historia debe ser apropiada para ${ageDescription}.${namesInstruction}${englishLevelInstruction}
+La historia debe ser apropiada para ${ageDescription}.${namesInstruction}${levelInstructions}
 Usa un estilo narrativo atractivo, con personajes interesantes y un desarrollo coherente de la trama.
 Incluye diálogos y descripciones donde sea apropiado.
 La historia debe tener un inicio, desarrollo y conclusión claros.

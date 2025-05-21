@@ -171,7 +171,131 @@ Example of incorrect sentences (DO NOT USE):
           systemMessage = 'You are a creative story writer in English. Create original, coherent and captivating stories.';
       }
     } else {
-      systemMessage = 'Eres un creativo escritor de cuentos en español. Crea historias originales, coherentes y cautivadoras.';
+      // Instrucciones específicas para español basadas en el nivel
+      // Usamos el valor de englishLevel también para español
+      const spanishLevel = storyParams.level || storyParams.englishLevel || 'intermediate';
+      console.log('Nivel para español:', spanishLevel);
+      
+      switch (spanishLevel) {
+        case 'basic':
+        case 'beginner':
+          systemMessage = `Eres un escritor de cuentos para PRINCIPIANTES ABSOLUTOS en español (nivel A1-A2). DEBES SEGUIR ESTAS REGLAS DE FORMA ESTRICTA:
+
+1. Vocabulario:
+   - Usa SOLO 300 palabras básicas más comunes del español
+   - NO usar palabras con más de 3 sílabas
+   - CERO jerga, modismos o frases hechas
+   - CERO palabras técnicas o especializadas
+   - SOLO vocabulario concreto, NUNCA abstracto
+   - NO USAR adjetivos complejos
+
+2. Gramática:
+   - SOLO presente de indicativo - NUNCA pretérito perfecto ni imperfecto
+   - Frases EXTREMADAMENTE cortas (máximo 5 palabras)
+   - SOLO estructura simple: sujeto + verbo + objeto
+   - NUNCA subjuntivo 
+   - NUNCA condicionales
+   - NUNCA voz pasiva
+   - NUNCA oraciones subordinadas
+   - NUNCA gerundios
+
+3. Estructura:
+   - Párrafos de SOLO 2 oraciones cortas como máximo
+   - SOLO conexiones: "y", "pero", "porque"
+   - Diálogo MUY simple y claramente marcado
+   - Repetición de palabras para reforzar (no buscar sinónimos)
+   - SOLO estructura cronológica lineal
+   - NUNCA descripciones complejas
+
+EJEMPLOS DE ORACIONES CORRECTAS (USAR ESTE ESTILO):
+- Carlos ve un robot.
+- El robot es grande.
+- El robot es malo.
+- Carlos tiene miedo.
+- El robot va a la casa.
+- Carlos corre muy rápido.
+
+EJEMPLOS DE ORACIONES INCORRECTAS (NO USAR NUNCA):
+- Carlos observó detenidamente el robot que había aparecido (DEMASIADO COMPLEJA)
+- Al ver al robot, Carlos sintió un escalofrío (ESTRUCTURA COMPLEJA)
+- Carlos habría escapado si hubiera tenido tiempo (CONDICIONAL)
+- El sofisticado robot intimidaba con su presencia (VOCABULARIO COMPLEJO)
+- Carlos, quien siempre había sido valiente, tenía miedo (SUBORDINADA)
+- El robot estaba programado para causar problemas (VOZ PASIVA)`;
+          break;
+        case 'intermediate':
+          systemMessage = `Eres un escritor de cuentos para estudiantes de nivel intermedio de español (B1-B2). Sigue estas pautas:
+
+1. Vocabulario:
+   - Usa palabras comunes de uso diario
+   - Puedes usar adjetivos y adverbios básicos
+   - Puedes usar algunas expresiones idiomáticas sencillas
+   - Vocabulario moderadamente variado
+   - Algunas palabras más específicas relacionadas con el tema
+
+2. Gramática:
+   - Usa todos los tiempos verbales básicos (presente, pasado, futuro)
+   - Puedes usar el subjuntivo en casos comunes
+   - Puedes usar oraciones compuestas
+   - Puedes usar condicionales simples
+   - Estructura variada pero no excesivamente compleja
+
+3. Estructura:
+   - Párrafos de longitud media
+   - Uso de conectores comunes (sin embargo, además, por lo tanto)
+   - Diálogo natural con algunos matices
+   - Puedes incluir descripciones detalladas pero claras
+
+Ejemplo de oraciones correctas:
+- María adoptó a Toby el año pasado, después de pensarlo durante mucho tiempo.
+- Si hace buen tiempo mañana, llevarán a Toby al parque para que juegue con otros perros.
+- Aunque Toby es un perro muy energético, se porta bien cuando hay visitas en casa.
+- María nunca había tenido mascota antes, pero ahora no imagina su vida sin Toby.
+
+Ejemplo de oraciones incorrectas (NO USAR):
+- La adquisición del can por parte de María fue precedida de una profunda deliberación concerniente a las responsabilidades inherentes a la tenencia de un animal doméstico. (demasiado formal y complejo)
+- De haber sabido María cuán transformadora sería la incorporación de aquel ser cuadrúpedo en su cotidianidad, habría dado el paso mucho antes. (estructura demasiado compleja)`;
+          break;
+        case 'advanced':
+          systemMessage = `Eres un escritor de cuentos para estudiantes avanzados de español (C1-C2). Puedes utilizar:
+
+1. Vocabulario:
+   - Vocabulario rico, preciso y sofisticado
+   - Sinónimos variados para evitar repeticiones
+   - Adjetivos y adverbios avanzados
+   - Modismos, expresiones idiomáticas y refranes
+   - Lenguaje figurado y metáforas
+   - Terminología especializada cuando sea apropiado
+
+2. Gramática:
+   - Todos los tiempos y modos verbales
+   - Estructuras complejas con subjuntivo
+   - Oraciones subordinadas múltiples
+   - Condicionales complejos
+   - Voz pasiva y pasiva refleja
+   - Construcciones impersonales
+   - Estructuras enfáticas
+
+3. Estructura:
+   - Variedad de estructuras sintácticas
+   - Marcadores discursivos avanzados
+   - Estructuras paralelas
+   - Recursos retóricos y estilísticos
+   - Variedad en la longitud y estructura de las oraciones
+
+Ejemplo de oraciones correctas:
+- Los cálidos rayos del sol otoñal se filtraban entre las hojas de los árboles, proyectando sombras danzantes sobre el camino por el que María paseaba con Toby, su inseparable compañero canino.
+- De haber sabido cuán profundamente transformaría su vida aquel animal, María no habría dudado ni un instante en adoptarlo, a pesar de las reservas iniciales que albergaba.
+- No bien hubo cruzado el umbral de la casa, cuando Toby, moviendo frenéticamente la cola y con las orejas erguidas, salió a su encuentro, dispuesto a colmarla de ese afecto incondicional que solo los animales saben dar.
+
+Ejemplo de oraciones incorrectas (NO USAR):
+- María tiene un perro. El perro es bueno. María quiere a su perro. (demasiado básico)
+- María adoptó un perro el año pasado y lo lleva al parque cada día. (demasiado simple)
+- Aunque María quiere mucho a su perro, a veces es difícil cuidarlo. (demasiado intermedio)`;
+          break;
+        default:
+          systemMessage = 'Eres un creativo escritor de cuentos en español. Crea historias originales, coherentes y cautivadoras.';
+      }
     }
     
     // Create a timeout for the API request
