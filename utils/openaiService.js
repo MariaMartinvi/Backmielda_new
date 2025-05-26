@@ -2,6 +2,13 @@
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
+const OpenAI = require('openai');
+const { constructPrompt, extractTitle } = require('./helpers');
+
+// Initialize OpenAI client
+const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY
+});
 
 // Function to log critical errors that require admin attention
 const notifyAdminOfCriticalError = async (errorMessage) => {
@@ -48,352 +55,56 @@ const notifyAdminOfCriticalError = async (errorMessage) => {
 // Export the notification function for use in other modules
 exports.notifyAdminOfCriticalError = notifyAdminOfCriticalError;
 
-exports.generateCompletion = async (prompt, storyParams) => {
+exports.generateCompletion = async (prompt, systemMessage, storyParams) => {
   try {
-    const maxTokens = getMaxTokens(storyParams.length);
-    const temperature = getTemperature(storyParams.creativityLevel);
+    console.log('🤖 Calling OpenAI API for story generation...');
+    console.log('System Message:', systemMessage);
+    console.log('Prompt:', prompt);
+    console.log('Language:', storyParams.language);
     
-    console.log('storyParams recibidos:', JSON.stringify(storyParams));
-    console.log('OpenAI request - maxTokens:', maxTokens, 'temperature:', temperature);
-
-    // Verificar que la API key existe
     if (!process.env.OPENAI_API_KEY) {
-      console.error('ERROR CRÍTICO: OPENAI_API_KEY no está configurada');
-      throw new Error('OpenAI API key is missing');
+      throw new Error('OpenAI API key is not configured');
     }
 
-    // Log the first few characters of the API key for debugging
-    console.log('Using OpenAI API Key (first 5 chars):', process.env.OPENAI_API_KEY.substring(0, 5) + '...');
+    const openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY
+    });
 
-    // Construir el mensaje del sistema basado en el idioma y nivel de inglés
-    let systemMessage;
-    if (storyParams.language === 'en') {
-      switch (storyParams.englishLevel) {
-        case 'basic':
-          systemMessage = `You are a story writer for absolute beginners in English (A1 level). Follow these strict rules:
-1. Use ONLY these words: be, have, do, say, get, make, go, know, take, see, come, think, look, want, give, use, find, tell, ask, work, seem, feel, try, leave, call.
-2. Use ONLY simple present tense (I go, you see, he likes).
-3. Maximum 3 words per sentence.
-4. No contractions (use "do not" not "don't").
-5. No adjectives or adverbs.
-6. No idioms or expressions.
-7. No past tense or future tense.
-8. No questions.
-9. No complex sentences.
-10. No pronouns except I, you, he, she, it, we, they.
+    const completion = await openai.chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages: [
+        { role: "system", content: systemMessage },
+        { role: "user", content: prompt }
+      ],
+      temperature: 0.7,
+      max_tokens: 2000
+    });
 
-Example of correct sentences:
-- I see a cat.
-- The cat is big.
-- I like the cat.
-- The cat likes me.
-
-Example of incorrect sentences (DO NOT USE):
-- I was walking in the park (past tense)
-- The beautiful cat runs quickly (adjectives and adverbs)
-- I don't like cats (contraction)
-- What do you see? (question)
-- The cat that I like is big (complex sentence)`;
-          break;
-        case 'intermediate':
-          systemMessage = `You are a story writer for intermediate English learners (B1-B2 level). Follow these rules:
-
-1. Vocabulary:
-   - Use common everyday words
-   - Can use basic adjectives (big, small, happy, sad)
-   - Can use basic adverbs (quickly, slowly, well)
-   - Can use common phrasal verbs
-   - Can use basic idioms and expressions
-
-2. Grammar:
-   - Use all basic tenses (present, past, future)
-   - Can use continuous tenses
-   - Can use basic modal verbs (can, should, must)
-   - Can use basic conditionals
-   - Can use relative clauses
-
-3. Structure:
-   - Maximum 10 words per sentence
-   - Can use compound sentences
-   - Can use basic linking words (and, but, because)
-   - Can use basic discourse markers
-
-Example of correct sentences:
-- I was walking in the park when I saw a beautiful butterfly.
-- The children were playing happily in the garden.
-- If it rains tomorrow, we will stay at home.
-- She can speak three languages fluently.
-
-Example of incorrect sentences (DO NOT USE):
-- The scintillating luminescence of the fireflies created an ethereal ambiance (too advanced)
-- Having been informed of the situation, I proceeded to take immediate action (too complex)
-- The cat, which was sitting on the windowsill, meowed loudly (too complex for intermediate)`;
-          break;
-        case 'advanced':
-          systemMessage = `You are a story writer for advanced English learners (C1-C2 level). You can use:
-
-1. Vocabulary:
-   - Sophisticated and precise vocabulary
-   - Advanced adjectives and adverbs
-   - Complex phrasal verbs
-   - Idioms and expressions
-   - Figurative language and metaphors
-   - Technical and specialized terms when appropriate
-
-2. Grammar:
-   - All verb tenses, including perfect and continuous forms
-   - Complex modal structures
-   - Advanced conditionals
-   - Passive voice
-   - Inversion
-   - Cleft sentences
-   - Advanced relative clauses
-
-3. Structure:
-   - Complex and compound-complex sentences
-   - Advanced linking words and discourse markers
-   - Parallel structures
-   - Rhetorical devices
-   - Varied sentence length and structure
-
-Example of correct sentences:
-- As the golden rays of the setting sun cast long shadows across the meadow, a kaleidoscope of butterflies danced in the crisp autumn air.
-- Having been informed of the situation, I proceeded to take immediate action to mitigate the potential consequences.
-- Not only did she excel in her studies, but she also demonstrated exceptional leadership skills.
-- The intricate tapestry of human emotions was woven with threads of joy, sorrow, and everything in between.
-
-Example of incorrect sentences (DO NOT USE):
-- I see cat. Cat big. (too basic)
-- I was walking in park. I saw butterfly. (too simple)
-- The children were playing in the garden and they were happy. (too intermediate)`;
-          break;
-        default:
-          systemMessage = 'You are a creative story writer in English. Create original, coherent and captivating stories.';
-      }
-    } else {
-      // Instrucciones específicas para español basadas en el nivel
-      // Usamos el valor de englishLevel también para español
-      const spanishLevel = storyParams.level || storyParams.englishLevel || 'intermediate';
-      console.log('Nivel para español:', spanishLevel);
-      
-      switch (spanishLevel) {
-        case 'basic':
-        case 'beginner':
-          systemMessage = `Eres un escritor de cuentos para PRINCIPIANTES ABSOLUTOS en español (nivel A1-A2). DEBES SEGUIR ESTAS REGLAS DE FORMA ESTRICTA:
-
-1. Vocabulario:
-   - Usa SOLO 300 palabras básicas más comunes del español
-   - NO usar palabras con más de 3 sílabas
-   - CERO jerga, modismos o frases hechas
-   - CERO palabras técnicas o especializadas
-   - SOLO vocabulario concreto, NUNCA abstracto
-   - NO USAR adjetivos complejos
-
-2. Gramática:
-   - SOLO presente de indicativo - NUNCA pretérito perfecto ni imperfecto
-   - Frases EXTREMADAMENTE cortas (máximo 5 palabras)
-   - SOLO estructura simple: sujeto + verbo + objeto
-   - NUNCA subjuntivo 
-   - NUNCA condicionales
-   - NUNCA voz pasiva
-   - NUNCA oraciones subordinadas
-   - NUNCA gerundios
-
-3. Estructura:
-   - Párrafos de SOLO 2 oraciones cortas como máximo
-   - SOLO conexiones: "y", "pero", "porque"
-   - Diálogo MUY simple y claramente marcado
-   - Repetición de palabras para reforzar (no buscar sinónimos)
-   - SOLO estructura cronológica lineal
-   - NUNCA descripciones complejas
-
-EJEMPLOS DE ORACIONES CORRECTAS (USAR ESTE ESTILO):
-- Carlos ve un robot.
-- El robot es grande.
-- El robot es malo.
-- Carlos tiene miedo.
-- El robot va a la casa.
-- Carlos corre muy rápido.
-
-EJEMPLOS DE ORACIONES INCORRECTAS (NO USAR NUNCA):
-- Carlos observó detenidamente el robot que había aparecido (DEMASIADO COMPLEJA)
-- Al ver al robot, Carlos sintió un escalofrío (ESTRUCTURA COMPLEJA)
-- Carlos habría escapado si hubiera tenido tiempo (CONDICIONAL)
-- El sofisticado robot intimidaba con su presencia (VOCABULARIO COMPLEJO)
-- Carlos, quien siempre había sido valiente, tenía miedo (SUBORDINADA)
-- El robot estaba programado para causar problemas (VOZ PASIVA)`;
-          break;
-        case 'intermediate':
-          systemMessage = `Eres un escritor de cuentos para estudiantes de nivel intermedio de español (B1-B2). Sigue estas pautas:
-
-1. Vocabulario:
-   - Usa palabras comunes de uso diario
-   - Puedes usar adjetivos y adverbios básicos
-   - Puedes usar algunas expresiones idiomáticas sencillas
-   - Vocabulario moderadamente variado
-   - Algunas palabras más específicas relacionadas con el tema
-
-2. Gramática:
-   - Usa todos los tiempos verbales básicos (presente, pasado, futuro)
-   - Puedes usar el subjuntivo en casos comunes
-   - Puedes usar oraciones compuestas
-   - Puedes usar condicionales simples
-   - Estructura variada pero no excesivamente compleja
-
-3. Estructura:
-   - Párrafos de longitud media
-   - Uso de conectores comunes (sin embargo, además, por lo tanto)
-   - Diálogo natural con algunos matices
-   - Puedes incluir descripciones detalladas pero claras
-
-Ejemplo de oraciones correctas:
-- María adoptó a Toby el año pasado, después de pensarlo durante mucho tiempo.
-- Si hace buen tiempo mañana, llevarán a Toby al parque para que juegue con otros perros.
-- Aunque Toby es un perro muy energético, se porta bien cuando hay visitas en casa.
-- María nunca había tenido mascota antes, pero ahora no imagina su vida sin Toby.
-
-Ejemplo de oraciones incorrectas (NO USAR):
-- La adquisición del can por parte de María fue precedida de una profunda deliberación concerniente a las responsabilidades inherentes a la tenencia de un animal doméstico. (demasiado formal y complejo)
-- De haber sabido María cuán transformadora sería la incorporación de aquel ser cuadrúpedo en su cotidianidad, habría dado el paso mucho antes. (estructura demasiado compleja)`;
-          break;
-        case 'advanced':
-          systemMessage = `Eres un escritor de cuentos para estudiantes avanzados de español (C1-C2). Puedes utilizar:
-
-1. Vocabulario:
-   - Vocabulario rico, preciso y sofisticado
-   - Sinónimos variados para evitar repeticiones
-   - Adjetivos y adverbios avanzados
-   - Modismos, expresiones idiomáticas y refranes
-   - Lenguaje figurado y metáforas
-   - Terminología especializada cuando sea apropiado
-
-2. Gramática:
-   - Todos los tiempos y modos verbales
-   - Estructuras complejas con subjuntivo
-   - Oraciones subordinadas múltiples
-   - Condicionales complejos
-   - Voz pasiva y pasiva refleja
-   - Construcciones impersonales
-   - Estructuras enfáticas
-
-3. Estructura:
-   - Variedad de estructuras sintácticas
-   - Marcadores discursivos avanzados
-   - Estructuras paralelas
-   - Recursos retóricos y estilísticos
-   - Variedad en la longitud y estructura de las oraciones
-
-Ejemplo de oraciones correctas:
-- Los cálidos rayos del sol otoñal se filtraban entre las hojas de los árboles, proyectando sombras danzantes sobre el camino por el que María paseaba con Toby, su inseparable compañero canino.
-- De haber sabido cuán profundamente transformaría su vida aquel animal, María no habría dudado ni un instante en adoptarlo, a pesar de las reservas iniciales que albergaba.
-- No bien hubo cruzado el umbral de la casa, cuando Toby, moviendo frenéticamente la cola y con las orejas erguidas, salió a su encuentro, dispuesto a colmarla de ese afecto incondicional que solo los animales saben dar.
-
-Ejemplo de oraciones incorrectas (NO USAR):
-- María tiene un perro. El perro es bueno. María quiere a su perro. (demasiado básico)
-- María adoptó un perro el año pasado y lo lleva al parque cada día. (demasiado simple)
-- Aunque María quiere mucho a su perro, a veces es difícil cuidarlo. (demasiado intermedio)`;
-          break;
-        default:
-          systemMessage = 'Eres un creativo escritor de cuentos en español. Crea historias originales, coherentes y cautivadoras.';
-      }
+    if (!completion.choices || !completion.choices[0] || !completion.choices[0].message) {
+      console.error('Invalid response from OpenAI:', completion);
+      throw new Error('Invalid response from OpenAI API');
     }
-    
-    // Create a timeout for the API request
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
-    
-    try {
-      console.log('Sending request to OpenAI API...');
-      const response = await axios.post('https://api.openai.com/v1/chat/completions', {
-        model: 'gpt-3.5-turbo',
-        messages: [
-          {
-            role: 'system',
-            content: systemMessage
-          },
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        max_tokens: maxTokens,
-        temperature: temperature,
-        top_p: 1,
-        frequency_penalty: 0.2,
-        presence_penalty: 0.6
-      }, {
-        headers: {
-          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        signal: controller.signal
-      });
-      
-      clearTimeout(timeoutId);
-      
-      console.log('OpenAI API response status:', response.status);
-      console.log('OpenAI API usage:', JSON.stringify(response.data.usage));
-      
-      if (!response.data || !response.data.choices || response.data.choices.length === 0) {
-        console.error('OpenAI API returned empty response:', JSON.stringify(response.data));
-        throw new Error('OpenAI API returned empty response');
-      }
-      
-      return response.data.choices[0].message.content.trim();
-    } catch (error) {
-      clearTimeout(timeoutId);
-      throw error;
-    }
+
+    const storyContent = completion.choices[0].message.content;
+    console.log('✅ OpenAI API call successful');
+    console.log('Generated content:', storyContent);
+
+    // Extraer título y contenido
+    const { title, content } = extractTitle(storyContent, storyParams.topic, storyParams.language);
+    console.log('Extracted title:', title);
+    console.log('Extracted content length:', content.length);
+
+    return {
+      title,
+      content,
+      language: storyParams.language
+    };
   } catch (error) {
-    // Detailed error logging
-    console.error('⚠️ OpenAI API Error:', error.message);
-    
+    console.error('Error in OpenAI API call:', error);
     if (error.response) {
-      // La solicitud fue realizada y el servidor respondió con un código de error
-      console.error('OpenAI API response error status:', error.response.status);
-      console.error('OpenAI API response error data:', JSON.stringify(error.response.data));
-      console.error('OpenAI API response error headers:', JSON.stringify(error.response.headers));
-    } else if (error.request) {
-      // La solicitud fue realizada pero no se recibió respuesta
-      console.error('OpenAI API request error (no response):', error.request);
-    } else if (error.code === 'ECONNABORTED' || error.name === 'AbortError') {
-      // Timeout error
-      console.error('OpenAI API request timed out');
-      throw new Error('OpenAI API request timed out. Please try again.');
+      console.error('OpenAI API Error Response:', error.response.data);
     }
-    
-    // Enhanced error handling
-    if (error.response?.status === 429) {
-      console.error('OpenAI rate limit exceeded');
-      
-      // Check specifically for insufficient quota errors
-      if (error.response?.data?.error?.code === 'insufficient_quota' || 
-          (error.response?.data?.error?.message && error.response?.data?.error?.message.includes('exceeded your current quota'))) {
-        console.error('🚫 OpenAI API QUOTA EXCEEDED - BILLING ISSUE DETECTED');
-        console.error('This requires immediate attention - the API key has run out of credits or reached its usage limit');
-        
-        // Notify administrators about this critical error
-        await notifyAdminOfCriticalError(
-          `OpenAI API quota exceeded. The API key has insufficient quota. Error details: ${JSON.stringify(error.response?.data || {})}`
-        );
-        
-        throw new Error('OpenAI API quota exceeded. The API key has insufficient quota. Please check billing details.');
-      }
-      
-      throw new Error('OpenAI rate limit exceeded. Please try again later.');
-    } else if (error.response?.status === 401) {
-      console.error('OpenAI API authentication error - invalid API key');
-      throw new Error('Authentication error with OpenAI API. Check your API key.');
-    } else if (error.response?.status === 400) {
-      console.error('OpenAI API bad request error:', error.response.data);
-      throw new Error('Bad request to OpenAI API: ' + (error.response.data?.error?.message || 'unknown error'));
-    } else if (error.response?.status >= 500) {
-      console.error('OpenAI API server error:', error.response.status);
-      throw new Error('OpenAI API server error. Please try again later.');
-    } else {
-      console.error('Unknown OpenAI API error:', error);
-      throw new Error('Failed to generate story with OpenAI: ' + (error.response?.data?.error?.message || error.message));
-    }
+    throw error;
   }
 };
 

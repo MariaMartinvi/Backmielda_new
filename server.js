@@ -45,8 +45,20 @@ const audioRoutes = require('./routes/audioRoutes');
 const subscriptionRoutes = require('./routes/subscriptionRoutes');
 const newsletterRoutes = require('./routes/newsletterRoutes');
 
-// Create Express app - THIS MUST COME BEFORE TRYING TO ACCESS app._router!
+// Create Express app
 const app = express();
+
+// Middleware para logging de todas las solicitudes
+app.use((req, res, next) => {
+  console.log('🔍 Incoming request:', {
+    method: req.method,
+    path: req.path,
+    origin: req.headers.origin,
+    referer: req.headers.referer,
+    userAgent: req.headers['user-agent']
+  });
+  next();
+});
 
 // Middleware
 app.use((req, res, next) => {
@@ -109,10 +121,16 @@ console.log('Allowed origins:', allowedOrigins);
 
 app.use(cors({
   origin: function(origin, callback) {
-    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+    if (!origin) {
+      console.log('❌ No origin header in request');
+      return callback(new Error('Not allowed by CORS - No origin header'));
+    }
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      console.log('✅ Allowed origin:', origin);
       callback(null, true);
     } else {
-      console.log('CORS blocked origin:', origin);
+      console.log('❌ Blocked origin:', origin);
       callback(new Error('Not allowed by CORS'));
     }
   },
@@ -130,10 +148,20 @@ app.use(helmet({
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: process.env.NODE_ENV === 'development' ? 1000 : 100, // Más permisivo en desarrollo
+  message: {
+    error: 'Too many requests',
+    retryAfter: '15 minutes'
+  },
+  standardHeaders: true,
+  legacyHeaders: false
 });
-app.use(limiter);
+
+// Aplicar rate limiter solo a rutas específicas
+app.use('/api/stories/generate', limiter);
+app.use('/api/auth', limiter);
+app.use('/api/stripe', limiter);
 
 // Test route that will help confirm the server is working
 app.get('/test', (req, res) => {
@@ -240,24 +268,20 @@ console.log('Newsletter routes registered');
 
 // Health check route
 app.get('/api/health', (req, res) => {
-  // Basic health check that just returns service availability
-  // For a detailed OpenAI health check, use /api/stories/health/openai
-  const healthInfo = {
+  res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development',
-    api_version: '1.0',
-    openai_api_configured: !!process.env.OPENAI_API_KEY,
-    message: 'For a detailed OpenAI API health check, use /api/stories/health/openai'
-  };
-  
-  res.status(200).json(healthInfo);
+    services: {
+      database: 'ok',
+      openai: process.env.OPENAI_API_KEY ? 'ok' : 'not_configured'
+    }
+  });
 });
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error('SERVER ERROR:', err.stack);
-  res.status(500).json({ error: 'Something went wrong!', message: err.message });
+  console.error('Error:', err);
+  res.status(500).json({ error: 'Internal server error' });
 });
 
 // Log routes after they're all registered

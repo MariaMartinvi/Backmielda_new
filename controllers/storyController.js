@@ -11,209 +11,125 @@ exports.generateStory = async (req, res, next) => {
   console.log('📝 Story generation request received:', req.body?.topic || 'No topic provided');
   
   try {
-    const { email, ...storyParams } = req.body;
+    const { topic, email, language = 'es', storyLength, storyType, creativityLevel, ageGroup, childNames, englishLevel } = req.body;
     
-    // Log the entire request body for debugging
-    console.log('📥 Full request body:', JSON.stringify(req.body, null, 2));
-    
-    // Validate request body
-    if (!storyParams.topic) {
-      console.log('❌ Missing topic in story generation request');
-      return res.status(400).json({ error: 'Topic is required' });
+    if (!topic || !email) {
+      return res.status(400).json({ error: 'Missing required parameters' });
     }
 
-    if (!email) {
-      console.log('❌ Missing email in story generation request');
-      return res.status(400).json({ error: 'Email is required' });
+    console.log('👤 Story parameters:', {
+      email,
+      topic,
+      language,
+      storyLength,
+      storyType,
+      creativityLevel,
+      ageGroup,
+      childNames,
+      englishLevel
+    });
+
+    // Get the appropriate system message based on language
+    let systemMessage;
+    switch (language) {
+      case 'en':
+        systemMessage = `You are a creative story writer in English. Create original, coherent and captivating stories. Write the story in English language. Include a creative and engaging title at the beginning of the story, separated by a newline.`;
+        break;
+      case 'de':
+        systemMessage = `Du bist ein kreativer Geschichtenschreiber auf Deutsch. Erstelle originelle, kohärente und fesselnde Geschichten. Schreibe die Geschichte auf Deutsch. Füge einen kreativen und ansprechenden Titel am Anfang der Geschichte ein, getrennt durch einen Zeilenumbruch.`;
+        break;
+      case 'fr':
+        systemMessage = `Vous êtes un écrivain créatif en français. Créez des histoires originales, cohérentes et captivantes. Écrivez l'histoire en français. Incluez un titre créatif et engageant au début de l'histoire, séparé par un saut de ligne.`;
+        break;
+      case 'ca':
+        systemMessage = `Ets un escriptor creatiu en català. Crea històries originals, coherents i captivadores. Escriu la història en català. Inclou un títol creatiu i atractiu al principi de la història, separat per un salt de línia.`;
+        break;
+      case 'it':
+        systemMessage = `Sei uno scrittore creativo in italiano. Crea storie originali, coerenti e avvincenti. Scrivi la storia in italiano. Includi un titolo creativo e coinvolgente all'inizio della storia, separato da una nuova riga.`;
+        break;
+      case 'es':
+      default:
+        systemMessage = `Eres un escritor creativo en español. Crea historias originales, coherentes y cautivadoras. Escribe la historia en español. Incluye un título creativo y atractivo al principio de la historia, separado por un salto de línea.`;
+        break;
     }
 
-    console.log(`👤 Story generation for email: ${email}, topic: ${storyParams.topic}`);
+    // Construct the prompt
+    const prompt = constructPrompt(req.body);
+
+    // Log complete OpenAI request
+    console.log('\n🤖 Complete OpenAI Request:');
+    console.log('-------------------');
+    console.log('System Message:', systemMessage);
+    console.log('-------------------');
+    console.log('User Prompt:', prompt);
+    console.log('-------------------');
+    console.log('Parameters:', {
+      language,
+      storyLength,
+      storyType,
+      creativityLevel,
+      ageGroup,
+      childNames,
+      englishLevel
+    });
+    console.log('-------------------\n');
+
+    // Generate the story
+    const story = await openaiService.generateCompletion(prompt, systemMessage, req.body);
+
+    if (!story || !story.content) {
+      console.error('❌ No story content received from OpenAI');
+      return res.status(500).json({ error: 'Failed to generate story content' });
+    }
+
+    // Extract title from the story content
+    const extractedTitle = extractTitle(story.content);
+    const title = typeof extractedTitle === 'object' ? extractedTitle.title : extractedTitle;
+    console.log('📑 Generated story:', {
+      title,
+      contentLength: story.content.length
+    });
 
     // Find or create user
-    let user;
-    try {
-      user = await User.findOne({ email });
-      if (!user) {
-        console.log(`🆕 Creating new user for email: ${email}`);
-        user = await User.create({ email });
-      }
-    } catch (dbError) {
-      console.error('❌ Database error when finding/creating user:', dbError);
-      return res.status(500).json({ 
-        error: 'Database error',
-        message: storyParams.language === 'es'
-          ? 'Error en la base de datos. Por favor, inténtalo de nuevo.'
-          : 'Database error. Please try again.'
+    let user = await User.findOne({ email });
+    if (!user) {
+      console.log('👤 Creating new user for email:', email);
+      user = await User.create({ 
+        email,
+        storiesGenerated: 0,
+        monthlyStoriesGenerated: 0
       });
     }
 
-    // Check and reset monthly count if needed
-    user.checkAndResetMonthlyCount();
-
-    // Check if user can generate more stories
-    const canGenerateStory = await checkStoryGenerationLimit(user);
-    if (!canGenerateStory) {
-      // If user is premium and has reached monthly limit
-      if (user.subscriptionStatus === 'active' && user.monthlyStoriesGenerated >= 30) {
-        console.log(`⚠️ User ${email} has reached monthly premium story limit`);
-        return res.status(403).json({ 
-          error: 'Monthly limit reached',
-          message: storyParams.language === 'es' 
-            ? 'Has alcanzado tu límite mensual de 30 historias. Podrás generar más historias el próximo mes.'
-            : 'You have reached your monthly story generation limit of 30 stories. You will be able to generate more stories next month.',
-          subscriptionRequired: false,
-          storiesRemaining: 0
-        });
-      }
-      
-      // For free users or cancelled subscriptions
-      console.log(`⚠️ User ${email} has reached free story limit`);
-      return res.status(403).json({ 
-        error: 'Story limit reached',
-        message: storyParams.language === 'es'
-          ? 'Has alcanzado tu límite de historias gratuitas. Por favor, suscríbete para generar más historias.'
-          : 'You have reached your free story limit. Please subscribe to generate more stories.',
-        subscriptionRequired: true,
-        storiesRemaining: await getStoriesRemaining(user)
-      });
-    }
-
-    // Generate story text via OpenAI
-    console.log('🔄 Constructing prompt for OpenAI...');
-    const prompt = constructPrompt(storyParams);
-    // Log the prompt for debugging
-    console.log('🔍 Generated prompt:', prompt);
-    console.log('🤖 Calling OpenAI API for story generation...');
-    
-    let storyContent;
-    try {
-      storyContent = await openaiService.generateCompletion(prompt, storyParams);
-      console.log('✅ OpenAI API call successful');
-    } catch (aiError) {
-      console.error('❌ OpenAI API error:', aiError.message);
-      console.error('Full OpenAI error details:', JSON.stringify(aiError, null, 2));
-      
-      // Check for specific OpenAI errors
-      if (aiError.message.includes('API key')) {
-        console.error('🔑 API Key error detected');
-        return res.status(500).json({
-          error: 'API configuration error',
-          message: storyParams.language === 'es'
-            ? 'Error de configuración del servidor. Por favor, contacta a soporte.'
-            : 'Server configuration error. Please contact support.'
-        });
-      }
-      
-      // Check for quota exceeded errors
-      if (aiError.message.includes('quota exceeded') || aiError.message.includes('insufficient quota')) {
-        console.error('🚫 API Quota exceeded error detected');
-        return res.status(402).json({
-          error: 'Quota exceeded',
-          code: 'insufficient_quota',
-          message: storyParams.language === 'es'
-            ? 'El servicio de generación de cuentos no está disponible temporalmente. Por favor, inténtalo más tarde.'
-            : 'The story generation service is temporarily unavailable. Please try again later.'
-        });
-      }
-      
-      if (aiError.message.includes('rate limit')) {
-        console.error('⏱️ Rate limit error detected');
-        return res.status(429).json({
-          error: 'Rate limit exceeded',
-          message: storyParams.language === 'es'
-            ? 'Demasiadas solicitudes. Por favor, inténtalo de nuevo más tarde.'
-            : 'Too many requests. Please try again later.'
-        });
-      }
-      
-      if (aiError.message.includes('timed out')) {
-        console.error('⏱️ Timeout error detected');
-        return res.status(504).json({
-          error: 'Request timeout',
-          message: storyParams.language === 'es'
-            ? 'La solicitud tardó demasiado tiempo. Por favor, inténtalo de nuevo.'
-            : 'The request took too long. Please try again.'
-        });
-      }
-      
-      // Default error - provide detailed error info to aid debugging
-      return res.status(500).json({ 
-        error: 'Story generation failed',
-        details: aiError.message,
-        message: storyParams.language === 'es'
-          ? 'Ha ocurrido un error al generar el cuento. Por favor, inténtalo de nuevo.'
-          : 'An error occurred while generating the story. Please try again.'
-      });
-    }
-    
-    // Extract or generate a title and clean content
-    console.log('📑 Extracting title and formatting content...');
-    const { title, content } = extractTitle(storyContent, storyParams.topic, storyParams.language);
-    
-    // Create new story document
+    // Save to database
     console.log('💾 Saving story to database...');
-    let story;
-    try {
-      story = new Story({
-        title,
-        content,
-        user: user._id
-      });
-      await story.save();
-    } catch (saveError) {
-      console.error('❌ Error saving story to database:', saveError);
-      // Even if saving fails, return the generated story to user
-      console.log('⚠️ Story save failed but returning content to user anyway');
-      return res.json({
-        title,
-        content,
-        parameters: storyParams,
-        timestamp: new Date().toISOString(),
-        storiesRemaining: await getStoriesRemaining(user),
-        saveError: true
-      });
-    }
-    
-    // Update user's story counts AFTER successful story generation and save
+    const savedStory = await Story.create({
+      title: title,
+      content: story.content,
+      topic,
+      email,
+      language,
+      user: user._id,  // Associate with user
+      createdAt: new Date()
+    });
+
+    // Update user story counts
     console.log('👤 Updating user story counts...');
-    try {
-      user.storiesGenerated += 1;
-      if (user.subscriptionStatus === 'active') {
-        user.monthlyStoriesGenerated += 1;
+    await User.findByIdAndUpdate(user._id, {
+      $inc: { 
+        storiesGenerated: 1,
+        monthlyStoriesGenerated: 1
       }
-      await user.save();
-    } catch (userUpdateError) {
-      console.error('❌ Error updating user story counts:', userUpdateError);
-      // Continue anyway - this is a non-critical error
-    }
-    
-    // Return the generated story
-    console.log('✅ Story generation complete, returning to client');
-    return res.json({
-      title,
-      content,
-      parameters: storyParams,
-      timestamp: new Date().toISOString(),
+    });
+
+    console.log('✅ Story generation complete');
+    res.json({
+      story: savedStory.toObject(),
       storiesRemaining: await getStoriesRemaining(user)
     });
   } catch (error) {
-    console.error('❌ Unhandled error in story generation:', error);
-    console.error('Error stack:', error.stack);
-    
-    // Add specific error information for detailed diagnosis
-    let errorType = 'unknown';
-    if (error.name) errorType = error.name;
-    if (error.code) errorType += `-${error.code}`;
-    
-    const language = req.body?.language || 'es';
-    return res.status(500).json({ 
-      error: 'Story generation failed',
-      errorType,
-      details: error.message,
-      message: language === 'es'
-        ? 'Ha ocurrido un error al generar el cuento. Por favor, inténtalo de nuevo.'
-        : 'An error occurred while generating the story. Please try again.'
-    });
+    console.error('Error generating story:', error);
+    res.status(500).json({ error: 'Story generation failed' });
   }
 };
 
