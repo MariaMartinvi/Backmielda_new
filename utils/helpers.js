@@ -43,6 +43,21 @@ exports.constructPrompt = (storyParams) => {
       short: 'breve (300 parole)',
       medium: 'media (600 parole)',
       long: 'lunga (900 parole)'
+    },
+    gl: {
+      short: 'curta (300 palabras)',
+      medium: 'media (600 palabras)',
+      long: 'longa (900 palabras)'
+    },
+    eu: {
+      short: 'laburra (300 hitz)',
+      medium: 'ertaina (600 hitz)',
+      long: 'luzea (900 hitz)'
+    },
+    pt: {
+      short: 'curta (300 palavras)',
+      medium: 'média (600 palavras)',
+      long: 'longa (900 palavras)'
     }
   };
 
@@ -83,6 +98,24 @@ exports.constructPrompt = (storyParams) => {
       children: 'bambini',
       teens: 'adolescenti',
       adults: 'adulti'
+    },
+    gl: {
+      default: 'todo o público',
+      children: 'nenos',
+      teens: 'adolescentes',
+      adults: 'adultos'
+    },
+    eu: {
+      default: 'publiko orokorra',
+      children: 'haurrak',
+      teens: 'nerabeak',
+      adults: 'helduak'
+    },
+    pt: {
+      default: 'público geral',
+      children: 'crianças',
+      teens: 'adolescentes',
+      adults: 'adultos'
     }
   };
 
@@ -117,6 +150,21 @@ exports.constructPrompt = (storyParams) => {
       basic: 'base',
       intermediate: 'intermedio',
       advanced: 'avanzato'
+    },
+    gl: {
+      basic: 'básico',
+      intermediate: 'intermedio',
+      advanced: 'avanzado'
+    },
+    eu: {
+      basic: 'hasiberria',
+      intermediate: 'ertaina',
+      advanced: 'aurreratua'
+    },
+    pt: {
+      basic: 'básico',
+      intermediate: 'intermediário',
+      advanced: 'avançado'
     }
   };
 
@@ -151,6 +199,21 @@ exports.constructPrompt = (storyParams) => {
       standard: 'standard',
       creative: 'creativa',
       innovative: 'innovativa'
+    },
+    gl: {
+      standard: 'estándar',
+      creative: 'creativa',
+      innovative: 'innovadora'
+    },
+    eu: {
+      standard: 'estandarra',
+      creative: 'sortzailea',
+      innovative: 'berritzailea'
+    },
+    pt: {
+      standard: 'padrão',
+      creative: 'criativa',
+      innovative: 'inovadora'
     }
   };
 
@@ -209,17 +272,47 @@ exports.constructPrompt = (storyParams) => {
       'classic': 'classico',
       'fantasy': 'fantastica',
       'humor': 'umoristico'
+    },
+    gl: {
+      'original': 'orixinal',
+      'adventure': 'de aventuras',
+      'horror': 'de terror',
+      'sci-fi': 'de ciencia ficción',
+      'classic': 'clásico',
+      'fantasy': 'fantástica',
+      'humor': 'de humor'
+    },
+    eu: {
+      'original': 'jatorrizkoa',
+      'adventure': 'abentura',
+      'horror': 'beldurrezkoa',
+      'sci-fi': 'zientzia-fikzioa',
+      'classic': 'klasikoa',
+      'fantasy': 'fantastikoa',
+      'humor': 'umorezkoa'
+    },
+    pt: {
+      'original': 'original',
+      'adventure': 'de aventura',
+      'horror': 'de terror',
+      'sci-fi': 'de ficção científica',
+      'classic': 'clássico',
+      'fantasy': 'fantástica',
+      'humor': 'de humor'
     }
   };
 
   // Instrucciones de idioma según el idioma seleccionado
   const languageInstructions = {
-    es: 'Escribe la historia en español.',
-    en: 'Write the story in English.',
-    de: 'Schreibe die Geschichte auf Deutsch.',
-    fr: 'Écrivez l\'histoire en français.',
-    ca: 'Escriu la història en català.',
-    it: 'Scrivi la storia in italiano.'
+    es: 'en español',
+    en: 'in English',
+    de: 'auf Deutsch',
+    fr: 'en français',
+    ca: 'en català',
+    it: 'in italiano',
+    gl: 'en galego',
+    eu: 'euskaraz',
+    pt: 'em português'
   };
 
   // Instrucciones de generación según el idioma
@@ -229,52 +322,58 @@ exports.constructPrompt = (storyParams) => {
     de: 'Schreibe eine Geschichte',
     fr: 'Écrivez une histoire',
     ca: 'Escriu una història',
-    it: 'Scrivi una storia'
+    it: 'Scrivi una storia',
+    gl: 'Escribe unha historia',
+    eu: 'Ipuin bat idatzi',
+    pt: 'Escreva uma história'
   };
 
   // Preposiciones según el idioma
   const prepositions = {
     es: {
-      about: 'sobre',
-      for: 'para',
+      in: 'en',
       with: 'con',
-      level: 'nivel',
-      creativity: 'creatividad'
+      for: 'para'
     },
     en: {
-      about: 'about',
-      for: 'for',
+      in: 'in',
       with: 'with',
-      level: 'level',
-      creativity: 'creativity'
+      for: 'for'
     },
     de: {
-      about: 'über',
-      for: 'für',
+      in: 'in',
       with: 'mit',
-      level: 'Niveau',
-      creativity: 'Kreativität'
+      for: 'für'
     },
     fr: {
-      about: 'sur',
-      for: 'pour',
+      in: 'en',
       with: 'avec',
-      level: 'niveau',
-      creativity: 'créativité'
+      for: 'pour'
     },
     ca: {
-      about: 'sobre',
-      for: 'per a',
+      in: 'en',
       with: 'amb',
-      level: 'nivell',
-      creativity: 'creativitat'
+      for: 'per'
     },
     it: {
-      about: 'su',
-      for: 'per',
+      in: 'in',
       with: 'con',
-      level: 'livello',
-      creativity: 'creatività'
+      for: 'per'
+    },
+    gl: {
+      in: 'en',
+      with: 'con',
+      for: 'para'
+    },
+    eu: {
+      in: '-n',
+      with: 'rekin',
+      for: 'arentzat'
+    },
+    pt: {
+      in: 'em',
+      with: 'com',
+      for: 'para'
     }
   };
 
@@ -287,11 +386,55 @@ exports.constructPrompt = (storyParams) => {
   const generationInstruction = generationInstructions[language] || generationInstructions.es;
   const langPrepositions = prepositions[language] || prepositions.es;
 
+  // Mensajes de niveles de idioma según el idioma
+  const languageLevelsMessage = {
+    es: {
+      title: 'Niveles de Idioma Adaptados',
+      description: 'Cuentos adaptados a diferentes niveles de dominio del idioma, desde principiante hasta avanzado'
+    },
+    en: {
+      title: 'Adapted Language Levels',
+      description: 'Stories adapted to different language proficiency levels, from beginner to advanced'
+    },
+    de: {
+      title: 'Angepasste Sprachniveaus',
+      description: 'Geschichten, die an verschiedene Sprachniveaus angepasst sind, von Anfänger bis Fortgeschritten'
+    },
+    fr: {
+      title: 'Niveaux de Langue Adaptés',
+      description: 'Histoires adaptées à différents niveaux de maîtrise de la langue, du débutant au avancé'
+    },
+    ca: {
+      title: 'Nivells d\'Idioma Adaptats',
+      description: 'Contes adaptats a diferents nivells de domini de l\'idioma, des de principiant fins a avançat'
+    },
+    it: {
+      title: 'Livelli di Lingua Adattati',
+      description: 'Storie adattate a diversi livelli di competenza linguistica, dal principiante all\'avanzato'
+    },
+    gl: {
+      title: 'Niveis de Idioma Adaptados',
+      description: 'Contos adaptados a diferentes niveis de dominio do idioma, desde principiante ata avanzado'
+    },
+    eu: {
+      title: 'Egokitutako Hizkuntza Mailak',
+      description: 'Hizkuntza maila desberdinetara egokitutako ipuinak, hasiberritik aurreratura'
+    },
+    pt: {
+      title: 'Níveis de Idioma Adaptados',
+      description: 'Histórias adaptadas a diferentes níveis de domínio do idioma, desde iniciante até avançado'
+    }
+  };
+
   // Construir el prompt en el idioma seleccionado
   let prompt = `${languageInstruction}\n\n`;
   
+  // Añadir mensaje de niveles de idioma
+  const selectedLanguageLevels = languageLevelsMessage[language] || languageLevelsMessage.es;
+  prompt += `${selectedLanguageLevels.title}\n${selectedLanguageLevels.description}\n\n`;
+  
   // Primera línea: tipo, longitud, tema y audiencia
-  prompt += `${generationInstruction} ${selectedType} ${selectedLength} ${langPrepositions.about} "${topic}" ${langPrepositions.for} ${selectedAudience}.\n`;
+  prompt += `${generationInstructions[language] || generationInstructions.es} ${selectedType} ${selectedLength} ${langPrepositions.for} "${topic}" ${langPrepositions.with} ${selectedAudience}.\n`;
   
   // Segunda línea: nivel de idioma y creatividad
   const levelAndCreativity = {
@@ -324,6 +467,21 @@ exports.constructPrompt = (storyParams) => {
       basic: `Usa un linguaggio molto semplice e basilare, con vocabolario limitato e frasi brevi. Livello A1-A2.`,
       intermediate: `Usa un linguaggio moderatamente complesso, con vocabolario vario e strutture grammaticali intermedie. Livello B1-B2.`,
       advanced: `Usa un linguaggio ricco e sofisticato, con vocabolario esteso e strutture grammaticali complesse. Livello C1-C2.`
+    },
+    gl: {
+      basic: `Usa unha linguaxe moi simple e básica, con vocabulario limitado e frases curtas. Nivel A1-A2.`,
+      intermediate: `Usa unha linguaxe moderadamente complexa, con vocabulario variado e estruturas gramaticais intermedias. Nivel B1-B2.`,
+      advanced: `Usa unha linguaxe rica e sofisticada, con vocabulario extenso e estruturas gramaticais complexas. Nivel C1-C2.`
+    },
+    eu: {
+      basic: `Erabili hizkuntza oso sinple eta oinarrizkoa, hitz-multzo mugatua eta esaldi laburrak dituena. A1-A2 maila.`,
+      intermediate: `Erabili hizkuntza moderatuki konplexua, hitz-multzo anitza eta egitura gramatikal ertainak dituena. B1-B2 maila.`,
+      advanced: `Erabili hizkuntza aberats eta sofistikatua, hitz-multzo zabala eta egitura gramatikal konplexuak dituena. C1-C2 maila.`
+    },
+    pt: {
+      basic: `Use uma linguagem muito simples e básica, com vocabulário limitado e frases curtas. Nível A1-A2.`,
+      intermediate: `Use uma linguagem moderadamente complexa, com vocabulário variado e estruturas gramaticais intermediárias. Nível B1-B2.`,
+      advanced: `Use uma linguagem rica e sofisticada, com vocabulário extenso e estruturas gramaticais complexas. Nível C1-C2.`
     }
   };
 
@@ -342,7 +500,10 @@ exports.constructPrompt = (storyParams) => {
     de: `Die Geschichte sollte ein ${selectedCreativity} Maß an Kreativität haben.`,
     fr: `L'histoire doit avoir un niveau de créativité ${selectedCreativity}.`,
     ca: `La història ha de tenir un nivell de creativitat ${selectedCreativity}.`,
-    it: `La storia deve avere un livello di creatività ${selectedCreativity}.`
+    it: `La storia deve avere un livello di creatività ${selectedCreativity}.`,
+    gl: `A historia debe ter un nivel de creatividade ${selectedCreativity}.`,
+    eu: `Ipuinak ${selectedCreativity} mailako sormena izan behar du.`,
+    pt: `A história deve ter um nível de criatividade ${selectedCreativity}.`
   };
   prompt += creativityInstruction[language] || creativityInstruction.es;
 
@@ -354,7 +515,10 @@ exports.constructPrompt = (storyParams) => {
       de: 'Schließe die folgenden Kinder in die Geschichte ein:',
       fr: 'Incluez les enfants suivants dans l\'histoire:',
       ca: 'Inclou els següents nens a la història:',
-      it: 'Includi i seguenti bambini nella storia:'
+      it: 'Includi i seguenti bambini nella storia:',
+      gl: 'Inclúe os seguintes nenos na historia:',
+      eu: 'Sartu ondorengo haurrak ipuinean:',
+      pt: 'Inclua as seguintes crianças na história:'
     };
     prompt += `\n${namesInstruction[language] || namesInstruction.es} ${childNames}.`;
   }

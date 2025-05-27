@@ -47,6 +47,15 @@ exports.generateStory = async (req, res, next) => {
       case 'it':
         systemMessage = `Sei uno scrittore creativo in italiano. Crea storie originali, coerenti e avvincenti. Scrivi la storia in italiano. Includi un titolo creativo e coinvolgente all'inizio della storia, separato da una nuova riga.`;
         break;
+      case 'gl':
+        systemMessage = `Es un escritor creativo en galego. Crea historias orixinais, coherentes e cativadoras. Escribe a historia en galego. Inclúe un título creativo e atractivo ao principio da historia, separado por un salto de liña.`;
+        break;
+      case 'eu':
+        systemMessage = `Euskal ipuin idazle sortzailea zara. Jatorrizko, koherente eta erakargarriak diren ipuinak sortu. Ipuina euskaraz idatzi. Ipuinaren hasieran, lerro-jauzi batez bereizita, izenburu sortzaile eta erakargarri bat gehitu.`;
+        break;
+      case 'pt':
+        systemMessage = `Você é um escritor criativo em português. Crie histórias originais, coerentes e cativantes. Escreva a história em português. Inclua um título criativo e envolvente no início da história, separado por uma quebra de linha.`;
+        break;
       case 'es':
       default:
         systemMessage = `Eres un escritor creativo en español. Crea historias originales, coherentes y cautivadoras. Escribe la historia en español. Incluye un título creativo y atractivo al principio de la historia, separado por un salto de línea.`;

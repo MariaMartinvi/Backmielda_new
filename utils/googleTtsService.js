@@ -5,18 +5,58 @@ const axios = require('axios');
 
 function getGoogleVoiceName(voiceId) {
   switch (voiceId) {
+    // Español
     case 'female':
       return 'es-ES-Neural2-H';
     case 'male':
-      return 'es-ES-Standard-B';
+      return 'es-ES-Neural2-B';
     case 'female-latam':
       return 'es-US-Neural2-A';
+    case 'male-latam':
+      return 'es-US-Neural2-B';
+    
+    // Inglés
     case 'female-english':
       return 'en-US-Neural2-F';
     case 'male-english':
-      return 'en-US-Standard-B';
-    case 'male-latam':
-      return 'es-US-Standard-B';
+      return 'en-US-Neural2-D';
+    
+    // Catalán
+    case 'female-catalan':
+      return 'ca-ES-Neural2-A';
+    case 'male-catalan':
+      return 'ca-ES-Neural2-B';
+    
+    // Gallego
+    case 'female-galician':
+      return 'gl-ES-Standard-A';
+    case 'male-galician':
+      return 'gl-ES-Standard-B';
+    
+    // Euskera
+    case 'female-basque':
+      return 'eu-ES-Standard-A';
+    case 'male-basque':
+      return 'eu-ES-Standard-B';
+    
+    // Alemán
+    case 'female-german':
+      return 'de-DE-Neural2-A';
+    case 'male-german':
+      return 'de-DE-Neural2-B';
+    
+    // Italiano
+    case 'female-italian':
+      return 'it-IT-Neural2-A';
+    case 'male-italian':
+      return 'it-IT-Neural2-B';
+    
+    // Francés
+    case 'female-french':
+      return 'fr-FR-Neural2-A';
+    case 'male-french':
+      return 'fr-FR-Neural2-B';
+    
     default:
       return 'es-ES-Neural2-A';
   }
@@ -46,6 +86,18 @@ exports.synthesizeSpeech = async (text, voiceId, speechRate) => {
       languageCode = 'en-US';
     } else if (voiceId.includes('latam')) {
       languageCode = 'es-US';
+    } else if (voiceId.includes('catalan')) {
+      languageCode = 'ca-ES';
+    } else if (voiceId.includes('galician')) {
+      languageCode = 'gl-ES';
+    } else if (voiceId.includes('basque')) {
+      languageCode = 'eu-ES';
+    } else if (voiceId.includes('german')) {
+      languageCode = 'de-DE';
+    } else if (voiceId.includes('italian')) {
+      languageCode = 'it-IT';
+    } else if (voiceId.includes('french')) {
+      languageCode = 'fr-FR';
     } else {
       languageCode = 'es-ES';
     }
