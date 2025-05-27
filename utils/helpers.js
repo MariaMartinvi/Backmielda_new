@@ -328,6 +328,19 @@ exports.constructPrompt = (storyParams) => {
     pt: 'Escreva uma história'
   };
 
+  // Texto de generación según el idioma
+  const generatingText = {
+    es: 'Generando',
+    en: 'Generating',
+    de: 'Generiere',
+    fr: 'Génération',
+    ca: 'Generant',
+    it: 'Generazione',
+    gl: 'Xerando',
+    eu: 'Sortzen',
+    pt: 'Gerando'
+  };
+
   // Preposiciones según el idioma
   const prepositions = {
     es: {
@@ -602,4 +615,85 @@ exports.extractTitle = (content, fallbackTopic, language = 'es') => {
     title: `${prefix} ${cleanTopic}`,
     content: cleanContent
   };
+};
+
+exports.generatingText = {
+  es: 'Generando',
+  en: 'Generating',
+  de: 'Generiere',
+  fr: 'Génération',
+  ca: 'Generant',
+  it: 'Generazione',
+  gl: 'Xerando',
+  eu: 'Sortzen',
+  pt: 'Gerando'
+};
+
+exports.loadingText = {
+  es: 'Cargando',
+  en: 'Loading',
+  de: 'Laden',
+  fr: 'Chargement',
+  ca: 'Carregant',
+  it: 'Caricamento',
+  gl: 'Cargando',
+  eu: 'Kargatzen',
+  pt: 'Carregando'
+};
+
+exports.storyExampleText = {
+  es: {
+    protagonist: 'Protagonista',
+    ageRange: 'años',
+    readStory: 'Leer cuento',
+    listenAudio: 'Escuchar audio'
+  },
+  en: {
+    protagonist: 'Protagonist',
+    ageRange: 'years',
+    readStory: 'Read story',
+    listenAudio: 'Listen audio'
+  },
+  de: {
+    protagonist: 'Protagonist',
+    ageRange: 'Jahre',
+    readStory: 'Geschichte lesen',
+    listenAudio: 'Audio hören'
+  },
+  fr: {
+    protagonist: 'Protagoniste',
+    ageRange: 'ans',
+    readStory: 'Lire l\'histoire',
+    listenAudio: 'Écouter l\'audio'
+  },
+  ca: {
+    protagonist: 'Protagonista',
+    ageRange: 'anys',
+    readStory: 'Llegir conte',
+    listenAudio: 'Escoltar àudio'
+  },
+  it: {
+    protagonist: 'Protagonista',
+    ageRange: 'anni',
+    readStory: 'Leggi storia',
+    listenAudio: 'Ascolta audio'
+  },
+  gl: {
+    protagonist: 'Protagonista',
+    ageRange: 'anos',
+    readStory: 'Ler conto',
+    listenAudio: 'Escoitar audio'
+  },
+  eu: {
+    protagonist: 'Protagonista',
+    ageRange: 'urte',
+    readStory: 'Ipuina irakurri',
+    listenAudio: 'Audioa entzun'
+  },
+  pt: {
+    protagonist: 'Protagonista',
+    ageRange: 'anos',
+    readStory: 'Ler história',
+    listenAudio: 'Ouvir áudio'
+  }
 };
