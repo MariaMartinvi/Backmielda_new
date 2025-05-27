@@ -3,8 +3,8 @@ const allowedOrigins = [
   'http://localhost:5000',
   'http://localhost:5001',
   'http://10.0.2.2:5001',  // Emulador de Android
-  'https://www.micuentacuentos.com',
-  'https://micuentacuentos.com',
+  'https://www.audiogretel.com',
+  'https://audiogretel.com',
   'http://10.0.2.2'
 ];
 

@@ -45,7 +45,7 @@ router.get('/google/callback',
 
       // Usar la URL de redirección guardada en la sesión o la URL por defecto
       const frontendUrl = req.session.redirectUri || (process.env.NODE_ENV === 'production'
-        ? 'https://micuentacuentos.com'
+        ? 'https://audiogretel.com'
         : process.env.FRONTEND_URL || 'http://localhost:3000');
       
       // Limpiar la URL de redirección de la sesión
@@ -55,7 +55,7 @@ router.get('/google/callback',
     } catch (error) {
       console.error('Error in Google callback:', error);
       const frontendUrl = req.session.redirectUri || (process.env.NODE_ENV === 'production'
-        ? 'https://micuentacuentos.com'
+        ? 'https://audiogretel.com'
         : process.env.FRONTEND_URL || 'http://localhost:3000');
       res.redirect(`${frontendUrl}/login?error=auth_failed`);
     }

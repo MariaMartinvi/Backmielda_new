@@ -110,11 +110,8 @@ mongoose.connect(process.env.MONGODB_URI, {
 // CORS configuration
 const allowedOrigins = [
   'http://localhost:3000',
-  'http://localhost:5000',
-  'http://localhost:5001',
-  'https://www.micuentacuentos.com',
-  'https://micuentacuentos.com',
-  'http://10.0.2.2'
+  'https://www.audiogretel.com',
+  'https://audiogretel.com'
 ];
 
 console.log('Allowed origins:', allowedOrigins);

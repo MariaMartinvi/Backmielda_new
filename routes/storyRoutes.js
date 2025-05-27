@@ -22,10 +22,8 @@ router.post('/generate', (req, res, next) => {
   // Verificar que el origen es válido
   const allowedOrigins = [
     'http://localhost:3000',
-    'https://generadorcuentos.onrender.com',
-    'https://www.generadorcuentos.onrender.com',
-    'https://www.micuentacuentos.com',
-    'https://micuentacuentos.com'
+    'https://www.audiogretel.com',
+    'https://audiogretel.com'
   ];
   
   if (!allowedOrigins.includes(origin)) {
