@@ -83,6 +83,43 @@ exports.generateStory = async (req, res, next) => {
     });
     console.log('-------------------\n');
 
+    // Find or create user
+    let user = await User.findOne({ email });
+    if (!user) {
+      console.log('👤 Creating new user for email:', email);
+      user = await User.create({ 
+        email,
+        storiesGenerated: 0,
+        monthlyStoriesGenerated: 0
+      });
+    }
+
+    // Check story generation limits
+    const canGenerate = await checkStoryGenerationLimit(user);
+    if (!canGenerate) {
+      // Calculate next renewal date for premium users
+      let errorMessage;
+      if (user.subscriptionStatus === 'active') {
+        const nextRenewalDate = new Date(user.lastMonthReset);
+        nextRenewalDate.setMonth(nextRenewalDate.getMonth() + 1);
+        const dayOfMonth = nextRenewalDate.getDate();
+        errorMessage = {
+          key: 'storyForm.premiumStoryLimitReached',
+          params: { day: dayOfMonth }
+        };
+      } else {
+        errorMessage = {
+          key: 'storyForm.storyLimitReached'
+        };
+      }
+
+      return res.status(403).json({
+        error: 'Story limit reached',
+        message: errorMessage,
+        storiesRemaining: await getStoriesRemaining(user)
+      });
+    }
+
     // Generate the story
     const story = await openaiService.generateCompletion(prompt, systemMessage, req.body);
 
@@ -98,17 +135,6 @@ exports.generateStory = async (req, res, next) => {
       title,
       contentLength: story.content.length
     });
-
-    // Find or create user
-    let user = await User.findOne({ email });
-    if (!user) {
-      console.log('👤 Creating new user for email:', email);
-      user = await User.create({ 
-        email,
-        storiesGenerated: 0,
-        monthlyStoriesGenerated: 0
-      });
-    }
 
     // Save to database
     console.log('💾 Saving story to database...');
