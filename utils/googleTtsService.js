@@ -23,9 +23,9 @@ function getGoogleVoiceName(voiceId) {
     
     // Catalán
     case 'female-catalan':
-      return 'ca-ES-Neural2-A';
+      return 'ca-ES-Standard-A';
     case 'male-catalan':
-      return 'ca-ES-Neural2-B';
+      return 'ca-ES-Standard-B';
     
     // Gallego
     case 'female-galician':
