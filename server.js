@@ -121,9 +121,10 @@ console.log('Allowed origins:', allowedOrigins);
 
 app.use(cors({
   origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl, postman)
     if (!origin) {
-      console.log('❌ No origin header in request');
-      return callback(new Error('Not allowed by CORS - No origin header'));
+      console.log('ℹ️ Request with no origin header');
+      return callback(null, true);
     }
     
     if (allowedOrigins.indexOf(origin) !== -1) {
