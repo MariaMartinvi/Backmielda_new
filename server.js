@@ -141,7 +141,8 @@ app.use(cors({
 app.use(helmet({
   contentSecurityPolicy: false,
   crossOriginResourcePolicy: { policy: "cross-origin" },
-  crossOriginOpenerPolicy: { policy: "unsafe-none" }
+  crossOriginOpenerPolicy: { policy: "unsafe-none" },
+  frameguard: false // Desactiva X-Frame-Options para permitir WebView
 }));
 
 // Rate limiting
