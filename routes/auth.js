@@ -51,6 +51,13 @@ router.get('/google/callback',
       // Limpiar la URL de redirección de la sesión
       delete req.session.redirectUri;
       
+      // Detectar si es la app Android por el user-agent
+      const userAgent = req.headers['user-agent'] || '';
+      if (userAgent.includes('Android')) {
+        // Redirigir al deep link de la app
+        return res.redirect(`audiogretel://auth/callback?token=${token}`);
+      }
+      // Redirigir al frontend web normal
       res.redirect(`${frontendUrl}/auth/google/callback?token=${token}`);
     } catch (error) {
       console.error('Error in Google callback:', error);
