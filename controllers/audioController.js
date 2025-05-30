@@ -11,7 +11,8 @@ exports.generateAudio = async (req, res, next) => {
       voiceId, 
       speechRate, 
       musicTrack, 
-      musicVolume 
+      musicVolume,
+      pausesMode: 'INTELLIGENT_AUTO'
     });
     
     // Validate request
@@ -26,7 +27,7 @@ exports.generateAudio = async (req, res, next) => {
       });
     }
     
-    // Generate audio using TTS service
+    // Generate audio using TTS service with intelligent pauses automatically applied
     const audioData = await googleTtsService.synthesizeSpeech(
       text,
       voiceId || 'female',
@@ -61,7 +62,8 @@ exports.generateAudio = async (req, res, next) => {
         voiceId,
         speechRate,
         musicTrack: usedMusicTrack,
-        musicVolume: musicTrack === 'none' ? 0 : (musicVolume !== undefined ? musicVolume : 0.1)
+        musicVolume: musicTrack === 'none' ? 0 : (musicVolume !== undefined ? musicVolume : 0.1),
+        pausesApplied: 'intelligent_automatic'
       }
     });
   } catch (error) {
@@ -79,4 +81,91 @@ exports.getBackgroundMusicTracks = (req, res) => {
       filename: BACKGROUND_MUSIC_TRACKS[track]
     }))
   });
+};
+
+// Test endpoint for pause functionality
+exports.testPauses = async (req, res) => {
+  try {
+    const { text, pauseSettings } = req.body;
+    
+    if (!text) {
+      return res.status(400).json({ 
+        error: 'El texto es obligatorio para el test de pausas' 
+      });
+    }
+
+    console.log("🧪 === TEST DE PAUSAS INICIADO ===");
+    console.log("📝 Texto recibido:", text.substring(0, 100) + "...");
+    console.log("⚙️ Configuración de pausas:", pauseSettings);
+
+    // Process text with pauses using our TTS service function
+    const { processTextWithPauses } = require('../utils/googleTtsService');
+    
+    // Since processTextWithPauses is not exported, we'll recreate the logic here
+    const {
+      sentencePause = '1s',
+      paragraphPause = '2s',   
+      dialoguePause = '1.5s',  
+      chapterPause = '3s'
+    } = pauseSettings || {};
+
+    // Process the text line by line
+    let lines = text.split('\n');
+    let processedLines = [];
+    
+    for (let i = 0; i < lines.length; i++) {
+      let line = lines[i].trim();
+      
+      if (line === '') {
+        if (processedLines.length > 0 && processedLines[processedLines.length - 1] !== '') {
+          processedLines.push(`<break time="${paragraphPause}"/>`);
+        }
+        continue;
+      }
+      
+      // Detect chapter titles
+      if (/^[A-ZÁÉÍÓÚÑÜÇ][A-ZÁÉÍÓÚÑÜÇ\s]+$/.test(line)) {
+        processedLines.push(`<break time="${chapterPause}"/>`);
+        processedLines.push(line);
+        processedLines.push(`<break time="${chapterPause}"/>`);
+        continue;
+      }
+      
+      // Process dialogues
+      line = line.replace(/"([^"]+)"/g, `<break time="${dialoguePause}"/> "$1" <break time="${dialoguePause}"/>`);
+      
+      // Process sentence pauses
+      line = line.replace(/([.!?])(\s+)/g, `$1<break time="${sentencePause}"/> `);
+      
+      if (/[.!?]$/.test(line.trim())) {
+        line = line + `<break time="${sentencePause}"/>`;
+      }
+      
+      processedLines.push(line);
+    }
+    
+    let ssmlText = processedLines.join(' ').replace(/\s+/g, ' ').trim();
+    const finalSSML = `<speak>${ssmlText}</speak>`;
+    
+    const totalPauses = (finalSSML.match(/<break time="[^"]+"/g) || []).length;
+    
+    console.log(`✅ Test completado: ${totalPauses} pausas generadas`);
+    console.log("🧪 === TEST DE PAUSAS FINALIZADO ===");
+
+    res.json({
+      success: true,
+      originalText: text,
+      ssmlGenerated: finalSSML,
+      pauseSettings: pauseSettings,
+      totalPauses: totalPauses,
+      message: `SSML generado exitosamente con ${totalPauses} pausas`
+    });
+
+  } catch (error) {
+    console.error('Error en test de pausas:', error);
+    res.status(500).json({ 
+      error: 'Error interno del servidor durante el test de pausas',
+      details: error.message 
+    });
+  }
 };

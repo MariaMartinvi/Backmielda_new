@@ -129,7 +129,7 @@ exports.generateStory = async (req, res, next) => {
     }
 
     // Extract title from the story content
-    const extractedTitle = extractTitle(story.content);
+    const extractedTitle = extractTitle(story.content, topic, language);
     const title = typeof extractedTitle === 'object' ? extractedTitle.title : extractedTitle;
     console.log('📑 Generated story:', {
       title,

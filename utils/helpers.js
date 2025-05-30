@@ -607,9 +607,21 @@ exports.extractTitle = (content, fallbackTopic, language = 'es') => {
   const prefix = prefixes.story; // Por defecto usamos "story"
 
   // Limpiar el tema para el título
+  const defaultTitles = {
+    es: 'Tu Historia',
+    en: 'Your Story',
+    de: 'Deine Geschichte',
+    fr: 'Votre Histoire',
+    ca: 'La Teva Història',
+    it: 'La Tua Storia',
+    gl: 'A Túa Historia',
+    eu: 'Zure Ipuina',
+    pt: 'Sua História'
+  };
+  
   const cleanTopic = fallbackTopic
-    .replace(/^["']|["']$/g, '') // Remove surrounding quotes
-    .trim();
+    ? fallbackTopic.replace(/^["']|["']$/g, '').trim() // Remove surrounding quotes and trim if exists
+    : defaultTitles[language] || defaultTitles.es; // Language-specific default title
 
   return {
     title: `${prefix} ${cleanTopic}`,
