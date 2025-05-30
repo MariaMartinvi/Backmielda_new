@@ -1,8 +1,16 @@
 const axios = require('axios');
 
+// Helper function to escape special characters for SSML
+function escapeSSML(text) {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
 
 // Helper function to map our voice IDs to Google's voice names
-
 function getGoogleVoiceName(voiceId) {
   switch (voiceId) {
     // Español - CORREGIDO según error de Google (F=MALE, E=FEMALE)
@@ -67,92 +75,97 @@ function processTextWithIntelligentPauses(text) {
   console.log("🎛️ === APLICANDO PAUSAS INTELIGENTES AUTOMÁTICAS ===");
   console.log("📝 Texto original (primeros 100 caracteres):", text.substring(0, 100) + "...");
   
-  // Configuración optimizada para fluidez y naturalidad máxima
+  // Configuración muy conservadora para Neural2
   const intelligentPauses = {
-    sentencePause: '0.6s',      // Pausas más naturales entre oraciones
-    paragraphPause: '1.2s',     // Respiración suave entre párrafos
-    dialoguePause: '1.0s',      // Cambio natural entre diálogos
-    chapterPause: '2.0s',       // Transición suave entre capítulos
-    shortPhrasePause: '0.3s',   // Micro-pausas muy sutiles
-    longSentencePause: '0.8s'   // Pausas moderadas en oraciones complejas
+    sentencePause: '0.6s',      
+    paragraphPause: '1.2s',     
+    shortPhrasePause: '0.3s'   
   };
 
-  console.log("⚙️ Configuración de pausas naturales:");
-  console.log("   - Oraciones normales: 0.6s");
-  console.log("   - Oraciones largas: 0.8s");
+  console.log("⚙️ Configuración de pausas conservadora para Neural2:");
+  console.log("   - Oraciones: 0.6s");
   console.log("   - Párrafos: 1.2s");
-  console.log("   - Diálogos: 1.0s");
-  console.log("   - Capítulos: 2.0s");
+  console.log("   - Frases: 0.3s");
 
-  // Preparar el texto para procesamiento inteligente
-  let processedText = polishTextForNaturalFlow(text);
+  // Escapar caracteres especiales SSML PRIMERO
+  let processedText = escapeSSML(text);
   
-  // Procesar línea por línea para control preciso
-  let lines = processedText.split('\n');
-  let processedLines = [];
+  // VERSIÓN ULTRA SIMPLE - Solo pausas básicas
+  // Pausas después de puntos
+  processedText = processedText.replace(/\.\s+/g, `. <break time="${intelligentPauses.sentencePause}"/> `);
   
-  for (let i = 0; i < lines.length; i++) {
-    let line = lines[i].trim();
-    
-    // Saltar líneas vacías y añadir pausas de párrafo
-    if (line === '') {
-      if (processedLines.length > 0 && processedLines[processedLines.length - 1] !== '') {
-        processedLines.push(`<break time="${intelligentPauses.paragraphPause}"/>`);
-      }
-      continue;
-    }
-    
-    // Detectar y procesar títulos/capítulos con entonación natural
-    const isChapterTitle = /^[A-ZÁÉÍÓÚÑÜÇ][A-ZÁÉÍÓÚÑÜÇ\s]+$/.test(line) || 
-                          /^CAPÍTULO\s+/i.test(line) ||
-                          /^CHAPTER\s+/i.test(line) ||
-                          /^[A-ZÁÉÍÓÚÑÜÇ\s]+:\s*/i.test(line);
-    
-    if (isChapterTitle) {
-      processedLines.push(`<break time="${intelligentPauses.chapterPause}"/>`);
-      // Títulos con entonación muy natural y suave
-      processedLines.push(`<prosody rate="0.95" pitch="-0.5st" volume="medium">${line}</prosody>`);
-      processedLines.push(`<break time="${intelligentPauses.chapterPause}"/>`);
-      console.log(`📚 Capítulo con entonación natural suave: "${line}"`);
-      continue;
-    }
-    
-    // Procesar diálogos con entonación muy natural y conversacional
-    line = line.replace(/"([^"]+)"/g, (match, dialogue) => {
-      // Diálogos con entonación apenas perceptible, muy natural
-      return `<break time="0.2s"/><prosody rate="1.01" pitch="+0.2st">"${dialogue}"</prosody>`;
-    });
-    
-    // Pausas inteligentes basadas en la longitud y complejidad de la oración
-    line = processIntelligentSentencePauses(line, intelligentPauses);
-    
-    // Respiración muy sutil antes de conjunciones
-    line = line.replace(/,\s+(y|pero|aunque|sin embargo|además)\s+/gi, (match, conjunction) => {
-      return `, <break time="${intelligentPauses.shortPhrasePause}"/>${conjunction.trim()} `;
-    });
-    
-    processedLines.push(line);
+  // Pausas después de signos de exclamación
+  processedText = processedText.replace(/!\s+/g, `! <break time="${intelligentPauses.sentencePause}"/> `);
+  
+  // Pausas después de preguntas
+  processedText = processedText.replace(/\?\s+/g, `? <break time="${intelligentPauses.sentencePause}"/> `);
+  
+  // Pausas después de comas (solo en oraciones largas)
+  if (text.length > 200) {
+    processedText = processedText.replace(/,\s+/g, `, <break time="${intelligentPauses.shortPhrasePause}"/> `);
   }
   
-  // Unir todas las líneas con espaciado natural
-  let ssmlText = processedLines.join(' ').replace(/\s+/g, ' ').trim();
+  // Pausas para párrafos (doble salto de línea)
+  processedText = processedText.replace(/\n\s*\n/g, ` <break time="${intelligentPauses.paragraphPause}"/> `);
   
-  // Aplicar ajustes finales para fluidez
-  ssmlText = addNaturalBreathing(ssmlText, intelligentPauses);
+  // Limpiar espacios múltiples
+  processedText = processedText.replace(/\s+/g, ' ').trim();
   
-  // Envolver en etiquetas SSML
-  const finalSSML = `<speak>${ssmlText}</speak>`;
+  // Envolver en etiquetas SSML simples
+  const finalSSML = `<speak>${processedText}</speak>`;
   
   // Contar pausas aplicadas
   const totalPauses = (finalSSML.match(/<break time="[^"]+"/g) || []).length;
-  console.log(`✅ SSML inteligente generado con ${totalPauses} pausas naturales`);
+  console.log(`✅ SSML simple generado con ${totalPauses} pausas`);
   
-  // Log de muestra para debugging
-  console.log("📄 Primeros 200 caracteres del SSML:");
-  console.log(finalSSML.substring(0, 200) + "...");
-  console.log("🎛️ === FIN PROCESAMIENTO INTELIGENTE ===");
+  // Validación ultra básica
+  if (!finalSSML.includes('<speak>') || !finalSSML.includes('</speak>')) {
+    console.warn("⚠️ SSML inválido, usando texto plano");
+    return `<speak>${escapeSSML(text)}</speak>`;
+  }
+  
+  console.log("📄 SSML generado:");
+  console.log(finalSSML.substring(0, 300) + "...");
+  console.log("🎛️ === FIN PROCESAMIENTO SIMPLE ===");
   
   return finalSSML;
+}
+
+// Función para validar SSML básico
+function isValidSSML(ssml) {
+  try {
+    // Verificar que las etiquetas principales estén balanceadas
+    const speakOpen = (ssml.match(/<speak>/g) || []).length;
+    const speakClose = (ssml.match(/<\/speak>/g) || []).length;
+    const prosodyOpen = (ssml.match(/<prosody[^>]*>/g) || []).length;
+    const prosodyClose = (ssml.match(/<\/prosody>/g) || []).length;
+    
+    if (speakOpen !== speakClose || prosodyOpen !== prosodyClose) {
+      console.log("❌ SSML no balanceado:", { speakOpen, speakClose, prosodyOpen, prosodyClose });
+      return false;
+    }
+    
+    // Verificar que no hay caracteres problemáticos sin escapar
+    if (ssml.includes('<') && !ssml.includes('&lt;') && ssml.match(/<(?![/\w\s="-]+>)/)) {
+      console.log("❌ Caracteres < sin escapar detectados");
+      return false;
+    }
+    
+    return true;
+  } catch (error) {
+    console.log("❌ Error validando SSML:", error.message);
+    return false;
+  }
+}
+
+// Función para limpiar SSML mal formado
+function cleanupSSML(ssml) {
+  // Remover etiquetas SSML vacías o mal formadas
+  ssml = ssml.replace(/<prosody[^>]*><\/prosody>/g, '');
+  ssml = ssml.replace(/<break time="[^"]*"\/>\s*<break time="[^"]*"\/>/g, '<break time="0.8s"/>');
+  ssml = ssml.replace(/\s{2,}/g, ' ');
+  
+  return ssml.trim();
 }
 
 // Función auxiliar para pulir el texto y hacerlo más natural
@@ -311,6 +324,38 @@ exports.synthesizeSpeech = async (text, voiceId, speechRate) => {
       return response.data.audioContent; // Base64 encoded audio
     } catch (error) {
       console.error("Error in axios.post:", error.message);
+      
+      // Si el SSML falla, intentar con texto plano como fallback
+      if (error.response?.data?.error?.message?.includes('Invalid SSML')) {
+        console.log("⚠️ SSML falló, intentando con texto plano...");
+        
+        const fallbackResponse = await axios.post(
+          `https://texttospeech.googleapis.com/v1/text:synthesize?key=${apiKey}`,
+          {
+            input: { text: text },
+            voice: {
+              languageCode,
+              name: voiceName,
+              ssmlGender: ssmlGender
+            },
+            audioConfig: {
+              audioEncoding: 'MP3',
+              speakingRate: speechRate,
+              pitch: 0.0,
+              volumeGainDb: 0.0
+            }
+          },
+          {
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+        
+        console.log("✅ Texto plano funcionó como fallback");
+        return fallbackResponse.data.audioContent;
+      }
+      
       throw error;
     }
   } catch (error) {
