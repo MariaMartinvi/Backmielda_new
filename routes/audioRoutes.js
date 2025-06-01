@@ -1,0 +1,15 @@
+// routes/audioRoutes.js
+const express = require('express');
+const router = express.Router();
+const audioController = require('../controllers/audioController');
+
+// Generate audio from text
+router.post('/generate', audioController.generateAudio);
+
+// Test endpoint for pause functionality
+router.post('/test-pauses', audioController.testPauses);
+
+// Get available background music tracks
+router.get('/background-music', audioController.getBackgroundMusicTracks);
+
+module.exports = router;
