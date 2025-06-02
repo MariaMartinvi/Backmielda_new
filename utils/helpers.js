@@ -134,7 +134,7 @@ exports.constructPrompt = (storyParams) => {
     de: {
       basic: 'Grundstufe',
       intermediate: 'Mittelstufe',
-      advanced: 'Fortgeschrittene'
+      advanced: 'Fortgeschritten'
     },
     fr: {
       basic: 'débutant',
@@ -551,9 +551,7 @@ exports.constructPrompt = (storyParams) => {
 
 INSTRUCCIONES ESPECIALES PARA UN CUENTO DIVERTIDO Y ORIGINAL:
 - Evita ser cursi o demasiado dulce. Los niños prefieren aventuras divertidas.
-- NO uses frases cliché como "había una vez", "colorín colorado", "y vivieron felices para siempre".
 - Incluye humor inteligente: situaciones absurdas pero creíbles, diálogos ingeniosos.
-- Comienza directamente con acción o una situación intrigante, no con presentaciones largas.
 - Agrega al menos 2-3 obstáculos o problemas divertidos que resolver.
 - Usa personajes con personalidades únicas y defectos graciosos.
 - Incluye momentos de humor físico apropiado (tropezones, confusiones, etc.).
@@ -565,9 +563,7 @@ INSTRUCCIONES ESPECIALES PARA UN CUENTO DIVERTIDO Y ORIGINAL:
 
 SPECIAL INSTRUCTIONS FOR A FUN AND ORIGINAL STORY:
 - Avoid being cheesy or overly sweet. Children prefer fun adventures.
-- DON'T use cliché phrases like "once upon a time", "happily ever after".
 - Include intelligent humor: absurd but believable situations, witty dialogues.
-- Start directly with action or an intriguing situation, not long introductions.
 - Add at least 2-3 fun obstacles or problems to solve.
 - Use characters with unique personalities and funny flaws.
 - Include appropriate physical humor (stumbles, confusions, etc.).
@@ -579,9 +575,7 @@ SPECIAL INSTRUCTIONS FOR A FUN AND ORIGINAL STORY:
 
 SPEZIELLE ANWEISUNGEN FÜR EINE LUSTIGE UND ORIGINELLE GESCHICHTE:
 - Vermeide kitschig oder übermäßig süß zu sein. Kinder bevorzugen lustige Abenteuer.
-- Verwende KEINE Klischee-Phrasen wie "es war einmal", "und sie lebten glücklich".
 - Füge intelligenten Humor hinzu: absurde aber glaubwürdige Situationen, witzige Dialoge.
-- Beginne direkt mit Action oder einer faszinierenden Situation, nicht mit langen Einführungen.
 - Füge mindestens 2-3 lustige Hindernisse oder Probleme zum Lösen hinzu.
 - Verwende Charaktere mit einzigartigen Persönlichkeiten und lustigen Fehlern.
 - Füge angemessenen körperlichen Humor hinzu (Stolpern, Verwirrungen, etc.).
@@ -593,9 +587,7 @@ SPEZIELLE ANWEISUNGEN FÜR EINE LUSTIGE UND ORIGINELLE GESCHICHTE:
 
 INSTRUCTIONS SPÉCIALES POUR UNE HISTOIRE AMUSANTE ET ORIGINALE:
 - Évitez d'être ringard ou trop mignon. Les enfants préfèrent les aventures amusantes.
-- N'utilisez PAS de phrases clichés comme "il était une fois", "ils vécurent heureux".
 - Incluez de l'humour intelligent: situations absurdes mais crédibles, dialogues spirituels.
-- Commencez directement par l'action ou une situation intrigante, pas de longues introductions.
 - Ajoutez au moins 2-3 obstacles ou problèmes amusants à résoudre.
 - Utilisez des personnages avec des personnalités uniques et des défauts drôles.
 - Incluez de l'humour physique approprié (trébuchements, confusions, etc.).
@@ -607,9 +599,7 @@ INSTRUCTIONS SPÉCIALES POUR UNE HISTOIRE AMUSANTE ET ORIGINALE:
 
 INSTRUCCIONS ESPECIAIS PER UN CONTE DIVERTIT I ORIGINAL:
 - Evita ser cursi o massa dolç. Els nens prefereixen aventures divertides.
-- NO facis servir frases clixé com "hi havia una vegada", "van viure feliços per sempre".
 - Inclou humor intel·ligent: situacions absurdes però creïbles, diàlegs enginyosos.
-- Comença directament amb acció o una situació intrigant, no amb presentacions llargues.
 - Afegeix almenys 2-3 obstacles o problemes divertits per resoldre.
 - Usa personatges amb前所未有的个性和缺陷。
 - Inclou moments d'humor físic apropiat (ensopegades, confusions, etc.).
@@ -621,9 +611,7 @@ INSTRUCCIONS ESPECIAIS PER UN CONTE DIVERTIT I ORIGINAL:
 
 ISTRUZIONI SPECIALI PER UNA STORIA DIVERTENTE E ORIGINALE:
 - Evita di essere sdolcinato o troppo dolce. I bambini preferiscono avventure divertenti.
-- NON usare frasi cliché come "c'era una volta", "vissero felici e contenti".
 - Includi umorismo intelligente: situazioni assurde ma credibili, dialoghi spiritosi.
-- Inizia direttamente con azione o una situazione intrigante, non con lunghe presentazioni.
 - Aggiungi almeno 2-3 ostacoli o problemi divertenti da risolvere.
 - Usa personaggi con personalità uniche e difetti divertenti.
 - Includi momenti di umorismo fisico appropriato (inciampi, confusioni, etc.).
@@ -635,9 +623,7 @@ ISTRUZIONI SPECIALI PER UNA STORIA DIVERTENTE E ORIGINALE:
 
 INSTRUCIÓNS ESPECIAIS PARA UN CONTO DIVERTIDO E ORIXINAL:
 - Evita ser cursi ou demasiado doce. Os nenos prefiren aventuras divertidas.
-- NON uses frases cliché como "había unha vez", "e viviron felices para sempre".
 - Inclúe humor intelixente: situacións absurdas pero creíbles, diálogos enxeñosos.
-- Comeza directamente con acción ou unha situación intrigante, non con presentacións longas.
 - Engade polo menos 2-3 obstáculos ou problemas divertidos que resolver.
 - Usa personaxes con personalidades únicas e defectos graciosos.
 - Inclúe momentos de humor físico apropiado (tropezóns, confusións, etc.).
@@ -649,9 +635,7 @@ INSTRUCIÓNS ESPECIAIS PARA UN CONTO DIVERTIDO E ORIXINAL:
 
 IPUIN DIBERTIGARRI ETA JATORRIZKO BATERAKO JARRAIBIDE BEREZIAK:
 - Saihestu gozo edo gozegi izatea. Haurrek abentura dibertigarriak nahiago dituzte.
-- EZ erabili topiko-esaldiak "behin batean", "zoriontsu bizi izan ziren".
 - Sartu humor adimentsua: egoera zentzugabeak baina sinesgarriak, elkarrizketa zorrotzak.
-- Hasi zuzenean ekintzarekin edo egoera interesgarri batekin, ez aurkezpen luzeekin.
 - Gehitu gutxienez 2-3 oztopo edo arazo dibertigarri konpontzeko.
 - Erabili nortasun bakanak eta akats dibertigarriak dituzten pertsonaiak.
 - Sartu humor fisiko egokia (behaztopenak, nahasketak, etab.).
@@ -663,9 +647,7 @@ IPUIN DIBERTIGARRI ETA JATORRIZKO BATERAKO JARRAIBIDE BEREZIAK:
 
 INSTRUÇÕES ESPECIAIS PARA UMA HISTÓRIA DIVERTIDA E ORIGINAL:
 - Evite ser piegas ou muito doce. As crianças preferem aventuras divertidas.
-- NÃO use frases clichê como "era uma vez", "viveram felizes para sempre".
 - Inclua humor inteligente: situações absurdas mas críveis, diálogos espirituosos.
-- Comece diretamente com ação ou uma situação intrigante, não com apresentações longas.
 - Adicione pelo menos 2-3 obstáculos ou problemas divertidos para resolver.
 - Use personagens com personalidades únicas e defeitos engraçados.
 - Inclua momentos de humor físico apropriado (tropeços, confusões, etc.).
