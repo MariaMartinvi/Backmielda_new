@@ -16,12 +16,138 @@ function escapeSSML(text) {
 // Helper function to get Google voice name based on voice ID
 function getGoogleVoiceName(voiceId) {
   switch (voiceId) {
+    // Español España
     case 'male':
+    case 'male-spanish':
       return 'es-ES-Neural2-F'; // MALE voice
     case 'female':
+    case 'female-spanish':
       return 'es-ES-Neural2-E'; // FEMALE voice
+    
+    // Español Latinoamérica
+    case 'female-latam':
+      return 'es-US-Neural2-A';
+    case 'male-latam':
+      return 'es-US-Neural2-B';
+    
+    // Inglés
+    case 'female-english':
+      return 'en-US-Neural2-F';
+    case 'male-english':
+      return 'en-US-Neural2-D';
+    
+    // Catalán
+    case 'female-catalan':
+      return 'ca-ES-Standard-A';
+    case 'male-catalan':
+      return 'ca-ES-Standard-B';
+    
+    // Gallego
+    case 'female-galician':
+      return 'gl-ES-Standard-A';
+    case 'male-galician':
+      return 'gl-ES-Standard-B';
+    
+    // Euskera
+    case 'female-basque':
+      return 'eu-ES-Standard-A';
+    case 'male-basque':
+      return 'eu-ES-Standard-B';
+    
+    // Alemán
+    case 'female-german':
+      return 'de-DE-Neural2-A';
+    case 'male-german':
+      return 'de-DE-Neural2-B';
+    
+    // Italiano
+    case 'female-italian':
+      return 'it-IT-Neural2-A';
+    case 'male-italian':
+      return 'it-IT-Neural2-B';
+    
+    // Francés
+    case 'female-french':
+      return 'fr-FR-Neural2-A';
+    case 'male-french':
+      return 'fr-FR-Neural2-B';
+    
+    // Portugués de Portugal
+    case 'female-portuguese-pt':
+      return 'pt-PT-Neural2-A';
+    case 'male-portuguese-pt':
+      return 'pt-PT-Neural2-B';
+    
+    // Portugués de Brasil
+    case 'female-portuguese-br':
+      return 'pt-BR-Neural2-A';
+    case 'male-portuguese-br':
+      return 'pt-BR-Neural2-B';
+    
     default:
-      return 'es-ES-Neural2-E'; // Default to female
+      return 'es-ES-Neural2-E'; // Default to female Spanish
+  }
+}
+
+// Helper function to get language code based on voice ID
+function getLanguageCode(voiceId) {
+  switch (voiceId) {
+    // Español España y Latinoamérica
+    case 'male':
+    case 'female':
+    case 'male-spanish':
+    case 'female-spanish':
+    case 'female-latam':
+    case 'male-latam':
+      return 'es-ES';
+    
+    // Inglés
+    case 'female-english':
+    case 'male-english':
+      return 'en-US';
+    
+    // Catalán
+    case 'female-catalan':
+    case 'male-catalan':
+      return 'ca-ES';
+    
+    // Gallego
+    case 'female-galician':
+    case 'male-galician':
+      return 'gl-ES';
+    
+    // Euskera
+    case 'female-basque':
+    case 'male-basque':
+      return 'eu-ES';
+    
+    // Alemán
+    case 'female-german':
+    case 'male-german':
+      return 'de-DE';
+    
+    // Italiano
+    case 'female-italian':
+    case 'male-italian':
+      return 'it-IT';
+    
+    // Francés
+    case 'female-french':
+    case 'male-french':
+      return 'fr-FR';
+    
+    // Portugués de Portugal
+    case 'female-portuguese-pt':
+    case 'male-portuguese-pt':
+      return 'pt-PT';
+    
+    // Portugués de Brasil
+    case 'female-portuguese-br':
+    case 'male-portuguese-br':
+      return 'pt-BR';
+    
+    default:
+      return 'es-ES'; // Default to Spanish
   }
 }
 
@@ -212,18 +338,20 @@ async function synthesizeSingleChunk(text, voiceId = 'female', speed = 1.0, useI
   console.log('🎛️ Longitud del SSML: ', ssmlBytes, 'bytes');
   
   const voiceName = getGoogleVoiceName(voiceId);
+  const languageCode = getLanguageCode(voiceId);
   
-  console.log(`Using voice: ${voiceName}`);
-  console.log('Using language code: es-ES');
-  console.log('Input type: SSML (pausas inteligentes automáticas)');
-  console.log('🔑 Using API Key authentication');
+  console.log(`🎤 Usando voz: ${voiceName}`);
+  console.log(`🌍 Código de idioma: ${languageCode}`);
+  console.log(`⚡ Velocidad: ${speed}x`);
+  console.log('📝 Tipo de entrada: SSML (pausas inteligentes automáticas)');
+  console.log('🔑 Autenticación: API Key');
   
   const request = {
     input: { ssml: textToSynthesize },
     voice: {
-      languageCode: 'es-ES',
+      languageCode: languageCode,
       name: voiceName,
-      ssmlGender: voiceId === 'male' ? 'MALE' : 'FEMALE'
+      ssmlGender: voiceId.includes('male') && !voiceId.includes('female') ? 'MALE' : 'FEMALE'
     },
     audioConfig: {
       audioEncoding: 'MP3',
@@ -233,10 +361,12 @@ async function synthesizeSingleChunk(text, voiceId = 'female', speed = 1.0, useI
   };
 
   try {
+    console.log(`🚀 Enviando solicitud a Google TTS...`);
     const [response] = await speechClient.synthesizeSpeech(request);
+    console.log(`✅ Audio generado exitosamente (${response.audioContent.length} bytes)`);
     return response.audioContent;
   } catch (error) {
-    console.error('Error en síntesis de voz:', error);
+    console.error('❌ Error en síntesis de voz:', error);
     throw error;
   }
 }
@@ -261,6 +391,7 @@ module.exports = {
   synthesizeSpeech,
   processTextWithIntelligentPauses,
   getGoogleVoiceName,
+  getLanguageCode,
   escapeSSML,
   splitTextIntoChunks,
   synthesizeSingleChunk
