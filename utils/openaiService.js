@@ -83,7 +83,7 @@ exports.generateCompletion = async (prompt, systemMessage, storyParams) => {
     
     console.log('\n🔧 CONFIGURACIÓN DE OPENAI:');
     console.log('---------------------------');
-    console.log('Modelo: gpt-3.5-turbo');
+    console.log('Modelo: gpt-4o');
     console.log('Temperatura: 0.7');
     console.log('Max tokens: 2000');
     
@@ -100,7 +100,7 @@ exports.generateCompletion = async (prompt, systemMessage, storyParams) => {
     });
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
+      model: "gpt-4o",
       messages: [
         { role: "system", content: systemMessage },
         { role: "user", content: prompt }
@@ -215,7 +215,7 @@ exports.testConnection = async () => {
     
     // Simple request to test API access
     const response = await axios.post('https://api.openai.com/v1/chat/completions', {
-      model: 'gpt-3.5-turbo',
+      model: 'gpt-4o',
       messages: [
         {
           role: 'user',
@@ -278,7 +278,7 @@ exports.checkOpenAIStatus = async () => {
     // Step 2: Make a minimal API request
     console.log('Testing OpenAI API connection...');
     const response = await axios.post('https://api.openai.com/v1/chat/completions', {
-      model: 'gpt-3.5-turbo',
+      model: 'gpt-4o',
       messages: [
         {
           role: 'user',
