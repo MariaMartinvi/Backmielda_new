@@ -488,6 +488,11 @@ exports.constructPrompt = (storyParams) => {
     }
   };
 
+  // Seleccionar el nivel de idioma correcto según el idioma seleccionado ANTES de usarlo
+  const languageLevel = language === 'en' ? englishLevel : 
+                       language === 'es' ? spanishLevel : 
+                       englishLevel; // Por defecto usamos englishLevel
+
   // Construir el prompt en el idioma seleccionado
   let prompt = `${languageInstruction}\n\n`;
   
@@ -522,11 +527,6 @@ exports.constructPrompt = (storyParams) => {
   // Primera línea: tipo, longitud, tema y audiencia
   prompt += `${generationInstructions[language] || generationInstructions.es} ${selectedType} ${selectedLength} ${langPrepositions.for} "${topic}" ${langPrepositions.with} ${selectedAudience}.\n`;
   
-  // Seleccionar el nivel de idioma correcto según el idioma seleccionado
-  const languageLevel = language === 'en' ? englishLevel : 
-                       language === 'es' ? spanishLevel : 
-                       englishLevel; // Por defecto usamos englishLevel
-
   // Segunda línea: nivel de idioma y creatividad
   // Añadir la instrucción de nivel de idioma
   prompt += `${levelAndCreativity[language]?.[languageLevel] || levelAndCreativity.es.intermediate}\n`;
