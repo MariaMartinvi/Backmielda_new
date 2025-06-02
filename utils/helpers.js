@@ -439,41 +439,7 @@ exports.constructPrompt = (storyParams) => {
     }
   };
 
-  // Construir el prompt en el idioma seleccionado
-  let prompt = `${languageInstruction}\n\n`;
-  
-  // Añadir resumen claro de las preferencias del usuario
-  const userPreferencesSection = {
-    es: `PREFERENCIAS DEL USUARIO:
-📖 Tipo de historia: ${selectedType}
-⏱️ Duración: ${selectedLength} 
-🎯 Tema: "${topic}"
-👥 Audiencia: ${selectedAudience}
-🧠 Nivel de idioma: ${levelAndCreativity.es[languageLevel] ? levelAndCreativity.es[languageLevel].split('.')[0] : 'intermedio'}
-💡 Creatividad: ${selectedCreativity}${childNames && childNames.trim() ? `\n👦👧 Personajes a incluir: ${childNames}` : ''}
-
-`,
-    en: `USER PREFERENCES:
-📖 Story type: ${selectedType}
-⏱️ Duration: ${selectedLength}
-🎯 Theme: "${topic}" 
-👥 Audience: ${selectedAudience}
-🧠 Language level: ${levelAndCreativity.en[languageLevel] ? levelAndCreativity.en[languageLevel].split('.')[0] : 'intermediate'}
-💡 Creativity: ${selectedCreativity}${childNames && childNames.trim() ? `\n👦👧 Characters to include: ${childNames}` : ''}
-
-`
-  };
-  
-  prompt += userPreferencesSection[language] || userPreferencesSection.es;
-  
-  // Añadir mensaje de niveles de idioma
-  const selectedLanguageLevels = languageLevelsMessage[language] || languageLevelsMessage.es;
-  prompt += `${selectedLanguageLevels.title}\n${selectedLanguageLevels.description}\n\n`;
-  
-  // Primera línea: tipo, longitud, tema y audiencia
-  prompt += `${generationInstructions[language] || generationInstructions.es} ${selectedType} ${selectedLength} ${langPrepositions.for} "${topic}" ${langPrepositions.with} ${selectedAudience}.\n`;
-  
-  // Segunda línea: nivel de idioma y creatividad
+  // Definir levelAndCreativity ANTES de usarlo
   const levelAndCreativity = {
     es: {
       basic: `Usa un lenguaje muy simple y básico, con vocabulario limitado y frases cortas. Nivel A1-A2.`,
@@ -522,11 +488,46 @@ exports.constructPrompt = (storyParams) => {
     }
   };
 
+  // Construir el prompt en el idioma seleccionado
+  let prompt = `${languageInstruction}\n\n`;
+  
+  // Añadir resumen claro de las preferencias del usuario
+  const userPreferencesSection = {
+    es: `PREFERENCIAS DEL USUARIO:
+📖 Tipo de historia: ${selectedType}
+⏱️ Duración: ${selectedLength} 
+🎯 Tema: "${topic}"
+👥 Audiencia: ${selectedAudience}
+🧠 Nivel de idioma: ${levelAndCreativity.es[languageLevel] ? levelAndCreativity.es[languageLevel].split('.')[0] : 'intermedio'}
+💡 Creatividad: ${selectedCreativity}${childNames && childNames.trim() ? `\n👦👧 Personajes a incluir: ${childNames}` : ''}
+
+`,
+    en: `USER PREFERENCES:
+📖 Story type: ${selectedType}
+⏱️ Duration: ${selectedLength}
+🎯 Theme: "${topic}" 
+👥 Audience: ${selectedAudience}
+🧠 Language level: ${levelAndCreativity.en[languageLevel] ? levelAndCreativity.en[languageLevel].split('.')[0] : 'intermediate'}
+💡 Creativity: ${selectedCreativity}${childNames && childNames.trim() ? `\n👦👧 Characters to include: ${childNames}` : ''}
+
+`
+  };
+  
+  prompt += userPreferencesSection[language] || userPreferencesSection.es;
+  
+  // Añadir mensaje de niveles de idioma
+  const selectedLanguageLevels = languageLevelsMessage[language] || languageLevelsMessage.es;
+  prompt += `${selectedLanguageLevels.title}\n${selectedLanguageLevels.description}\n\n`;
+  
+  // Primera línea: tipo, longitud, tema y audiencia
+  prompt += `${generationInstructions[language] || generationInstructions.es} ${selectedType} ${selectedLength} ${langPrepositions.for} "${topic}" ${langPrepositions.with} ${selectedAudience}.\n`;
+  
   // Seleccionar el nivel de idioma correcto según el idioma seleccionado
   const languageLevel = language === 'en' ? englishLevel : 
                        language === 'es' ? spanishLevel : 
                        englishLevel; // Por defecto usamos englishLevel
 
+  // Segunda línea: nivel de idioma y creatividad
   // Añadir la instrucción de nivel de idioma
   prompt += `${levelAndCreativity[language]?.[languageLevel] || levelAndCreativity.es.intermediate}\n`;
   
