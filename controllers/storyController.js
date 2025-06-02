@@ -11,7 +11,7 @@ exports.generateStory = async (req, res, next) => {
   console.log('📝 Story generation request received:', req.body?.topic || 'No topic provided');
   
   try {
-    const { topic, email, language = 'es', storyLength, storyType, creativityLevel, ageGroup, childNames, englishLevel } = req.body;
+    const { topic, email, language = 'es', storyLength, storyType, creativityLevel, ageGroup, childNames, englishLevel, spanishLevel } = req.body;
     
     if (!topic || !email) {
       return res.status(400).json({ error: 'Missing required parameters' });
@@ -26,7 +26,8 @@ exports.generateStory = async (req, res, next) => {
       creativityLevel,
       ageGroup,
       childNames,
-      englishLevel
+      englishLevel,
+      spanishLevel
     });
 
     // Get the appropriate system message based on language
