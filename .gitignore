@@ -5,6 +5,8 @@ firebase-credentials.json.json
 ffmpeg-master-latest-win64-gpl/
 *.exe
 
-# Audio test files
+# Audio test files (but allow background music assets)
 test-audio/
-*.mp3
+test-*.mp3
+*-test.mp3
+temp/*.mp3
