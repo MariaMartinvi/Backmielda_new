@@ -65,23 +65,35 @@ exports.generateStory = async (req, res, next) => {
     // Construct the prompt
     const prompt = constructPrompt(req.body);
 
-    // Log complete OpenAI request
-    console.log('\n🤖 Complete OpenAI Request:');
-    console.log('-------------------');
-    console.log('System Message:', systemMessage);
-    console.log('-------------------');
-    console.log('User Prompt:', prompt);
-    console.log('-------------------');
-    console.log('Parameters:', {
-      language,
-      storyLength,
-      storyType,
-      creativityLevel,
-      ageGroup,
-      childNames,
-      englishLevel
-    });
-    console.log('-------------------\n');
+    // Log complete OpenAI request with better formatting
+    console.log('\n' + '🔥'.repeat(40));
+    console.log('📝 GENERACIÓN DE CUENTO INICIADA');
+    console.log('🔥'.repeat(40));
+    
+    console.log('\n📊 PARÁMETROS RECIBIDOS:');
+    console.log('------------------------');
+    console.log('📧 Email:', email);
+    console.log('🌍 Idioma:', language);
+    console.log('📏 Longitud:', storyLength);
+    console.log('🎭 Tipo:', storyType);
+    console.log('💡 Creatividad:', creativityLevel);
+    console.log('👶 Grupo de edad:', ageGroup);
+    console.log('👦👧 Nombres de niños:', childNames || 'Ninguno');
+    console.log('🇬🇧 Nivel de inglés:', englishLevel);
+    console.log('🇪🇸 Nivel de español:', spanishLevel);
+    console.log('🎯 Tema:', topic);
+    
+    console.log('\n🎭 MENSAJE DEL SISTEMA CONSTRUIDO:');
+    console.log('----------------------------------');
+    console.log(systemMessage);
+    
+    console.log('\n📝 PROMPT CONSTRUIDO PARA OPENAI:');
+    console.log('---------------------------------');
+    console.log(prompt);
+    
+    console.log('\n' + '🔥'.repeat(40));
+    console.log('🚀 ENVIANDO A OPENAI SERVICE...');
+    console.log('🔥'.repeat(40) + '\n');
 
     // Find or create user
     let user = await User.findOne({ email });

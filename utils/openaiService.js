@@ -57,10 +57,39 @@ exports.notifyAdminOfCriticalError = notifyAdminOfCriticalError;
 
 exports.generateCompletion = async (prompt, systemMessage, storyParams) => {
   try {
-    console.log('🤖 Calling OpenAI API for story generation...');
-    console.log('System Message:', systemMessage);
-    console.log('Prompt:', prompt);
-    console.log('Language:', storyParams.language);
+    console.log('\n' + '='.repeat(80));
+    console.log('🤖 LLAMADA A OPENAI API - PROMPT COMPLETO');
+    console.log('='.repeat(80));
+    
+    console.log('\n📋 PARÁMETROS DE LA HISTORIA:');
+    console.log('----------------------------');
+    console.log('Idioma:', storyParams.language || 'No especificado');
+    console.log('Tema:', storyParams.topic || 'No especificado');
+    console.log('Longitud:', storyParams.storyLength || 'No especificado');
+    console.log('Tipo:', storyParams.storyType || 'No especificado');
+    console.log('Creatividad:', storyParams.creativityLevel || 'No especificado');
+    console.log('Grupo de edad:', storyParams.ageGroup || 'No especificado');
+    console.log('Nombres de niños:', storyParams.childNames || 'Ninguno');
+    console.log('Nivel de inglés:', storyParams.englishLevel || 'No especificado');
+    console.log('Nivel de español:', storyParams.spanishLevel || 'No especificado');
+    
+    console.log('\n🎭 MENSAJE DEL SISTEMA (SYSTEM MESSAGE):');
+    console.log('----------------------------------------');
+    console.log(systemMessage);
+    
+    console.log('\n📝 PROMPT DEL USUARIO (USER PROMPT):');
+    console.log('------------------------------------');
+    console.log(prompt);
+    
+    console.log('\n🔧 CONFIGURACIÓN DE OPENAI:');
+    console.log('---------------------------');
+    console.log('Modelo: gpt-3.5-turbo');
+    console.log('Temperatura: 0.7');
+    console.log('Max tokens: 2000');
+    
+    console.log('\n' + '='.repeat(80));
+    console.log('🚀 ENVIANDO SOLICITUD A OPENAI...');
+    console.log('='.repeat(80));
     
     if (!process.env.OPENAI_API_KEY) {
       throw new Error('OpenAI API key is not configured');
@@ -81,18 +110,41 @@ exports.generateCompletion = async (prompt, systemMessage, storyParams) => {
     });
 
     if (!completion.choices || !completion.choices[0] || !completion.choices[0].message) {
-      console.error('Invalid response from OpenAI:', completion);
+      console.error('❌ Respuesta inválida de OpenAI:', completion);
       throw new Error('Invalid response from OpenAI API');
     }
 
     const storyContent = completion.choices[0].message.content;
-    console.log('✅ OpenAI API call successful');
-    console.log('Generated content:', storyContent);
+    
+    console.log('\n' + '='.repeat(80));
+    console.log('✅ RESPUESTA RECIBIDA DE OPENAI');
+    console.log('='.repeat(80));
+    console.log('\n📖 CONTENIDO GENERADO:');
+    console.log('----------------------');
+    console.log(storyContent);
+    
+    console.log('\n📊 ESTADÍSTICAS DE USO:');
+    console.log('-----------------------');
+    if (completion.usage) {
+      console.log('Tokens del prompt:', completion.usage.prompt_tokens || 'No disponible');
+      console.log('Tokens de la respuesta:', completion.usage.completion_tokens || 'No disponible');
+      console.log('Total de tokens:', completion.usage.total_tokens || 'No disponible');
+    } else {
+      console.log('Información de uso no disponible');
+    }
 
     // Extraer título y contenido
     const { title, content } = extractTitle(storyContent, storyParams.topic, storyParams.language);
-    console.log('Extracted title:', title);
-    console.log('Extracted content length:', content.length);
+    
+    console.log('\n🏷️ PROCESAMIENTO FINAL:');
+    console.log('-----------------------');
+    console.log('Título extraído:', title);
+    console.log('Longitud del contenido:', content.length, 'caracteres');
+    console.log('Palabras aproximadas:', Math.round(content.split(' ').length));
+    
+    console.log('\n' + '='.repeat(80));
+    console.log('🎉 GENERACIÓN COMPLETADA EXITOSAMENTE');
+    console.log('='.repeat(80) + '\n');
 
     return {
       title,
@@ -100,10 +152,14 @@ exports.generateCompletion = async (prompt, systemMessage, storyParams) => {
       language: storyParams.language
     };
   } catch (error) {
-    console.error('Error in OpenAI API call:', error);
+    console.log('\n' + '='.repeat(80));
+    console.log('❌ ERROR EN LA LLAMADA A OPENAI');
+    console.log('='.repeat(80));
+    console.error('Detalles del error:', error.message);
     if (error.response) {
-      console.error('OpenAI API Error Response:', error.response.data);
+      console.error('Respuesta de error de OpenAI:', error.response.data);
     }
+    console.log('='.repeat(80) + '\n');
     throw error;
   }
 };
