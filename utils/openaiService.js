@@ -86,6 +86,7 @@ exports.generateCompletion = async (prompt, systemMessage, storyParams) => {
     console.log('Modelo: gpt-4o');
     console.log('Temperatura: 0.7');
     console.log('Max tokens: 2000');
+    console.log('Formato de respuesta: JSON (title + content)');
     
     console.log('\n' + '='.repeat(80));
     console.log('🚀 ENVIANDO SOLICITUD A OPENAI...');
@@ -106,7 +107,8 @@ exports.generateCompletion = async (prompt, systemMessage, storyParams) => {
         { role: "user", content: prompt }
       ],
       temperature: 0.7,
-      max_tokens: 2000
+      max_tokens: 2000,
+      response_format: { type: "json_object" }
     });
 
     if (!completion.choices || !completion.choices[0] || !completion.choices[0].message) {
@@ -119,9 +121,29 @@ exports.generateCompletion = async (prompt, systemMessage, storyParams) => {
     console.log('\n' + '='.repeat(80));
     console.log('✅ RESPUESTA RECIBIDA DE OPENAI');
     console.log('='.repeat(80));
-    console.log('\n📖 CONTENIDO GENERADO:');
-    console.log('----------------------');
+    console.log('\n📖 CONTENIDO JSON GENERADO:');
+    console.log('---------------------------');
     console.log(storyContent);
+    
+    // Parse JSON response
+    let parsedStory;
+    try {
+      parsedStory = JSON.parse(storyContent);
+    } catch (parseError) {
+      console.error('❌ Error parsing JSON response:', parseError);
+      console.log('📝 Raw response content:', storyContent);
+      
+      // Fallback: try to extract title and content manually if JSON parsing fails
+      const { title, content } = extractTitle(storyContent, storyParams.topic, storyParams.language);
+      parsedStory = { title, content };
+      console.log('🔄 Using fallback extraction method');
+    }
+    
+    // Validate parsed response
+    if (!parsedStory.title || !parsedStory.content) {
+      console.error('❌ Missing title or content in parsed response:', parsedStory);
+      throw new Error('Invalid story format: missing title or content');
+    }
     
     console.log('\n📊 ESTADÍSTICAS DE USO:');
     console.log('-----------------------');
@@ -133,22 +155,19 @@ exports.generateCompletion = async (prompt, systemMessage, storyParams) => {
       console.log('Información de uso no disponible');
     }
 
-    // Extraer título y contenido
-    const { title, content } = extractTitle(storyContent, storyParams.topic, storyParams.language);
-    
     console.log('\n🏷️ PROCESAMIENTO FINAL:');
     console.log('-----------------------');
-    console.log('Título extraído:', title);
-    console.log('Longitud del contenido:', content.length, 'caracteres');
-    console.log('Palabras aproximadas:', Math.round(content.split(' ').length));
+    console.log('Título extraído:', parsedStory.title);
+    console.log('Longitud del contenido:', parsedStory.content.length, 'caracteres');
+    console.log('Palabras aproximadas:', Math.round(parsedStory.content.split(' ').length));
     
     console.log('\n' + '='.repeat(80));
     console.log('🎉 GENERACIÓN COMPLETADA EXITOSAMENTE');
     console.log('='.repeat(80) + '\n');
 
     return {
-      title,
-      content,
+      title: parsedStory.title,
+      content: parsedStory.content,
       language: storyParams.language
     };
   } catch (error) {

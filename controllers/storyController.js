@@ -30,13 +30,13 @@ exports.generateStory = async (req, res, next) => {
       spanishLevel
     });
 
-    // Get the appropriate system message based on language
+    // Get system message by language
     let systemMessage;
     switch (language) {
       case 'en':
-        systemMessage = `You are a creative writer specialized in FUN and ORIGINAL children's stories. Your mission is to create stories that make children laugh and keep them engaged.
+        systemMessage = `You are a creative children's story writer in English. Create original, coherent and captivating stories that are fun and engaging for children.
 
-CHARACTERISTICS OF YOUR STYLE:
+SPECIAL INSTRUCTIONS FOR FUN AND ORIGINAL STORIES:
 - Intelligent humor appropriate for children
 - Characters with unique personalities and funny flaws
 - Absurd but believable situations  
@@ -45,28 +45,90 @@ CHARACTERISTICS OF YOUR STYLE:
 - You don't use typical fairy tale clichés
 - You create satisfying but not predictable endings
 
-Write the story in English. Include a creative and engaging title at the beginning of the story, separated by a newline.`;
+IMPORTANT: You must respond with a JSON object containing exactly two fields:
+{
+  "title": "A creative and engaging title for the story",
+  "content": "The complete story content in English"
+}
+
+Write the story in English.`;
         break;
       case 'de':
-        systemMessage = `Du bist ein kreativer Geschichtenschreiber auf Deutsch. Erstelle originelle, kohärente und fesselnde Geschichten. Schreibe die Geschichte auf Deutsch. Füge einen kreativen und ansprechenden Titel am Anfang der Geschichte ein, getrennt durch einen Zeilenumbruch.`;
+        systemMessage = `Du bist ein kreativer Geschichtenschreiber auf Deutsch. Erstelle originelle, kohärente und fesselnde Geschichten.
+
+WICHTIG: Du musst mit einem JSON-Objekt antworten, das genau zwei Felder enthält:
+{
+  "title": "Ein kreativer und ansprechender Titel für die Geschichte",
+  "content": "Der vollständige Geschichteninhalt auf Deutsch"
+}
+
+Schreibe die Geschichte auf Deutsch.`;
         break;
       case 'fr':
-        systemMessage = `Vous êtes un écrivain créatif en français. Créez des histoires originales, cohérentes et captivantes. Écrivez l'histoire en français. Incluez un titre créatif et engageant au début de l'histoire, séparé par un saut de ligne.`;
+        systemMessage = `Vous êtes un écrivain créatif en français. Créez des histoires originales, cohérentes et captivantes.
+
+IMPORTANT: Vous devez répondre avec un objet JSON contenant exactement deux champs:
+{
+  "title": "Un titre créatif et engageant pour l'histoire",
+  "content": "Le contenu complet de l'histoire en français"
+}
+
+Écrivez l'histoire en français.`;
         break;
       case 'ca':
-        systemMessage = `Ets un escriptor creatiu en català. Crea històries originals, coherents i captivadores. Escriu la història en català. Inclou un títol creatiu i atractiu al principi de la història, separat per un salt de línia.`;
+        systemMessage = `Ets un escriptor creatiu en català. Crea històries originals, coherents i captivadores.
+
+IMPORTANT: Has de respondre amb un objecte JSON que contingui exactamente dos camps:
+{
+  "title": "Un títol creatiu i atractiu per a la història",
+  "content": "El contingut complet de la història en català"
+}
+
+Escriu la història en català.`;
         break;
       case 'it':
-        systemMessage = `Sei uno scrittore creativo in italiano. Crea storie originali, coerenti e avvincenti. Scrivi la storia in italiano. Includi un titolo creativo e coinvolgente all'inizio della storia, separato da una nuova riga.`;
+        systemMessage = `Sei uno scrittore creativo in italiano. Crea storie originali, coerenti e avvincenti.
+
+IMPORTANTE: Devi rispondere con un oggetto JSON contenente esattamente due campi:
+{
+  "title": "Un titolo creativo e coinvolgente per la storia",
+  "content": "Il contenuto completo della storia in italiano"
+}
+
+Scrivi la storia in italiano.`;
         break;
       case 'gl':
-        systemMessage = `Es un escritor creativo en galego. Crea historias orixinais, coherentes e cativadoras. Escribe a historia en galego. Inclúe un título creativo e atractivo ao principio da historia, separado por un salto de liña.`;
+        systemMessage = `Es un escritor creativo en galego. Crea historias orixinais, coherentes e cativadoras.
+
+IMPORTANTE: Debes responder cun obxecto JSON que conteña exactamente dous campos:
+{
+  "title": "Un título creativo e atractivo para a historia",
+  "content": "O contido completo da historia en galego"
+}
+
+Escribe a historia en galego.`;
         break;
       case 'eu':
-        systemMessage = `Euskal ipuin idazle sortzailea zara. Jatorrizko, koherente eta erakargarriak diren ipuinak sortu. Ipuina euskaraz idatzi. Ipuinaren hasieran, lerro-jauzi batez bereizita, izenburu sortzaile eta erakargarri bat gehitu.`;
+        systemMessage = `Euskal ipuin idazle sortzailea zara. Jatorrizko, koherente eta erakargarriak diren ipuinak sortu.
+
+GARRANTZITSUA: JSON objektu batekin erantzun behar duzu bi eremu zehatz dituela:
+{
+  "title": "Ipuinaren izenburu sortzaile eta erakargarria",
+  "content": "Ipuinaren eduki osoa euskaraz"
+}
+
+Ipuina euskaraz idatzi.`;
         break;
       case 'pt':
-        systemMessage = `Você é um escritor criativo em português. Crie histórias originais, coerentes e cativantes. Escreva a história em português. Inclua um título criativo e envolvente no início da história, separado por uma quebra de linha.`;
+        systemMessage = `Você é um escritor criativo em português. Crie histórias originais, coerentes e cativantes.
+
+IMPORTANTE: Você deve responder com um objeto JSON contendo exatamente dois campos:
+{
+  "title": "Um título criativo e envolvente para a história",
+  "content": "O conteúdo completo da história em português"
+}
+
+Escreva a história em português.`;
         break;
       case 'es':
       default:
@@ -81,7 +143,13 @@ CARACTERÍSTICAS DE TU ESTILO:
 - No usas clichés típicos de cuentos tradicionales
 - Creas finales satisfactorios pero no predecibles
 
-Escribe la historia en español. Incluye un título creativo y atractivo al principio de la historia, separado por un salto de línea.`;
+IMPORTANTE: Debes responder con un objeto JSON que contenga exactamente dos campos:
+{
+  "title": "Un título creativo y atractivo para la historia",
+  "content": "El contenido completo de la historia en español"
+}
+
+Escribe la historia en español.`;
         break;
     }
 
@@ -166,16 +234,21 @@ Escribe la historia en español. Incluye un título creativo y atractivo al prin
     // Extract title from the story content
     const extractedTitle = extractTitle(story.content, topic, language);
     const title = typeof extractedTitle === 'object' ? extractedTitle.title : extractedTitle;
+    
+    // Include title in the content for audio generation
+    const contentWithTitle = `${story.title}\n\n${story.content}`;
+    
     console.log('📑 Generated story:', {
-      title,
-      contentLength: story.content.length
+      title: story.title,
+      contentLength: story.content.length,
+      contentWithTitleLength: contentWithTitle.length
     });
 
     // Save to database
     console.log('💾 Saving story to database...');
     const savedStory = await Story.create({
-      title: title,
-      content: story.content,
+      title: story.title,
+      content: contentWithTitle,  // Save content with title included
       topic,
       email,
       language,
@@ -238,10 +311,17 @@ exports.generateAudio = async (req, res, next) => {
     await story.save();
 
     // Generate audio with Google TTS
+    // Since content now includes title, we need to separate them
+    const contentLines = story.content.split('\n');
+    const titleFromContent = contentLines[0];
+    const contentWithoutTitle = contentLines.slice(2).join('\n'); // Skip title and empty line
+    
     const audioData = await googleTtsService.synthesizeSpeech(
-      story.content,
+      contentWithoutTitle,  // Content without title
       voiceId || 'female',
-      speechRate || 1.0
+      speechRate || 1.0,
+      true,  // useIntelligentPauses
+      titleFromContent  // Pass the title separately for automatic pause detection
     );
     
     let finalAudioData;

@@ -4,7 +4,7 @@ const { mixAudioWithBackground, getRandomMusicTrack, BACKGROUND_MUSIC_TRACKS } =
 
 exports.generateAudio = async (req, res, next) => {
   try {
-    const { text, voiceId, speechRate, musicTrack, musicVolume } = req.body;
+    const { text, voiceId, speechRate, musicTrack, musicVolume, title } = req.body;
     
     console.log('Audio generation request:', { 
       textLength: text ? text.length : 0, 
@@ -12,6 +12,7 @@ exports.generateAudio = async (req, res, next) => {
       speechRate, 
       musicTrack, 
       musicVolume,
+      title: title || 'No title provided',
       pausesMode: 'INTELLIGENT_AUTO'
     });
     
@@ -31,7 +32,9 @@ exports.generateAudio = async (req, res, next) => {
     const audioData = await googleTtsService.synthesizeSpeech(
       text,
       voiceId || 'female',
-      speechRate || 1.0
+      speechRate || 1.0,
+      true,  // useIntelligentPauses
+      title  // Pass the title for automatic pause detection
     );
 
     let finalAudioData;

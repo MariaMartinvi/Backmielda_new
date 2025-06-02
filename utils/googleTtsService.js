@@ -152,7 +152,7 @@ function getLanguageCode(voiceId) {
 }
 
 // Helper function to process text and add intelligent pauses automatically
-function processTextWithIntelligentPauses(text) {
+function processTextWithIntelligentPauses(text, title = null) {
   console.log("🎵 === PROCESAMIENTO COMPLETAMENTE NATURAL ===");
   console.log("📝 Texto original (primeros 100 caracteres):", text.substring(0, 100) + "...");
   
@@ -168,30 +168,62 @@ function processTextWithIntelligentPauses(text) {
   // Escapar caracteres especiales SSML PRIMERO
   let processedText = escapeSSML(text);
   
-  // Solo detectar títulos y agregar punto + pausa de 1s
-  // Detectar títulos simples (líneas cortas que parecen títulos)
-  processedText = processedText.replace(/^([A-ZÁÉÍÓÚÑÜÇ][^.\n!?]{3,40})$/gm, (match, possibleTitle) => {
-    // Evitar oraciones comunes pero ser permisivo
-    if (!/\b(había una vez|en un|vivía|tenía|estaba|era muy|fue cuando|después de)\b/i.test(possibleTitle)) {
-      console.log(`🎯 TÍTULO: "${possibleTitle}" → Punto + 1s natural`);
+  // Detectar y contar títulos encontrados para debugging
+  let titlesFound = 0;
+  
+  // Si tenemos un título separado, agregarlo al principio con pausa
+  if (title) {
+    const escapedTitle = escapeSSML(title);
+    console.log(`🎯 TÍTULO SEPARADO DETECTADO: "${title}" → Punto + 1s natural`);
+    titlesFound++;
+    processedText = `${escapedTitle}.<break time="${naturalPauses.titlePause}"/> ${processedText}`;
+  }
+  
+  // 1. Detectar títulos que empiezan con artículos franceses/español/etc
+  processedText = processedText.replace(/^(L'|Le |La |Les |El |La |Los |Las |Das |Der |Die |Il |Un |Une |The |A )([A-ZÁÉÍÓÚÑÜÇÀÈÊËÎÏÔÖÙÛÜŸÂÄÔÖÛÜŸĆČĐŠŽÆØÅÄÖÜ][^.\n!?]{2,50})$/gm, (match, article, titlePart) => {
+    const fullTitle = article + titlePart;
+    console.log(`🎯 TÍTULO CON ARTÍCULO: "${fullTitle}" → Punto + 1s natural`);
+    titlesFound++;
+    return `${fullTitle}.<break time="${naturalPauses.titlePause}"/>`;
+  });
+  
+  // 2. Detectar títulos simples (líneas cortas que parecen títulos) - MEJORADO
+  processedText = processedText.replace(/^([A-ZÁÉÍÓÚÑÜÇÀÈÊËÎÏÔÖÙÛÜŸÂÄÔÖÛÜŸĆČĐŠŽÆØÅÄÖÜ][^.\n!?]{3,40})$/gm, (match, possibleTitle) => {
+    // Evitar oraciones comunes en múltiples idiomas pero ser permisivo
+    if (!/\b(había una vez|en un|vivía|tenía|estaba|era muy|fue cuando|después de|il était une fois|once upon a time|es war einmal|c'era una volta|puis|ensuite|alors|mais|cependant)\b/i.test(possibleTitle)) {
+      console.log(`🎯 TÍTULO SIMPLE: "${possibleTitle}" → Punto + 1s natural`);
+      titlesFound++;
       // Solo punto final + pausa de 1 segundo, nada más
       return `${possibleTitle}.<break time="${naturalPauses.titlePause}"/>`;
     }
     return match;
   });
   
-  // Títulos con formato "CAPÍTULO X" o similares
-  processedText = processedText.replace(/^(CAPÍTULO\s+\d+|CHAPTER\s+\d+|PARTE\s+\d+)(.*)$/gmi, (match, chapterWord, rest) => {
+  // 3. Títulos con formato "CAPÍTULO X" o similares en múltiples idiomas
+  processedText = processedText.replace(/^(CAPÍTULO\s+\d+|CHAPTER\s+\d+|PARTIE\s+\d+|CHAPITRE\s+\d+|KAPITEL\s+\d+|CAPITOLO\s+\d+)(.*)$/gmi, (match, chapterWord, rest) => {
     console.log(`📚 CAPÍTULO: "${match}" → Punto + 1s natural`);
+    titlesFound++;
     const fullTitle = chapterWord + rest;
     return `${fullTitle}.<break time="${naturalPauses.titlePause}"/>`;
   });
   
-  // Títulos con dos puntos al final
-  processedText = processedText.replace(/^([A-ZÁÉÍÓÚÑÜÇ][^:\n]{5,}:)\s*$/gm, (match, titleWithColon) => {
+  // 4. Títulos con dos puntos al final - ACTUALIZADO con caracteres internacionales
+  processedText = processedText.replace(/^([A-ZÁÉÍÓÚÑÜÇÀÈÊËÎÏÔÖÙÛÜŸÂÄÔÖÛÜŸĆČĐŠŽÆØÅÄÖÜ][^:\n]{5,}:)\s*$/gm, (match, titleWithColon) => {
     console.log(`📝 TÍTULO CON ":" → Solo 1s natural`);
+    titlesFound++;
     // Los dos puntos ya dan entonación natural, solo pausa
     return `${titleWithColon}<break time="${naturalPauses.titlePause}"/>`;
+  });
+  
+  // 5. Patrones específicos de títulos franceses más flexibles
+  processedText = processedText.replace(/^(.*(?:Histoire|Aventure|Conte|Récit|Légende|Fable|Roman).*?)$/gmi, (match, frenchTitle) => {
+    // Solo si es una línea corta y no tiene punto final
+    if (frenchTitle.length < 60 && !/[.!?]$/.test(frenchTitle)) {
+      console.log(`🇫🇷 TÍTULO FRANCÉS ESPECÍFICO: "${frenchTitle}" → Punto + 1s natural`);
+      titlesFound++;
+      return `${frenchTitle}.<break time="${naturalPauses.titlePause}"/>`;
+    }
+    return match;
   });
   
   // Limpiar espacios múltiples (solo esto)
@@ -200,8 +232,18 @@ function processTextWithIntelligentPauses(text) {
   // Envolver en SSML simple
   const finalSSML = `<speak>${processedText}</speak>`;
   
+  console.log(`✅ Títulos detectados: ${titlesFound}`);
   console.log(`✅ Audio completamente natural - Solo ${(finalSSML.match(/<break/g) || []).length} pausas mínimas`);
   console.log("🎵 === TODO LO DEMÁS ES NATURAL ===");
+  
+  // Si no se detectaron títulos (y no teníamos título separado), mostrar las primeras líneas para debugging
+  if (titlesFound === 0 && !title) {
+    const lines = text.split('\n').slice(0, 3);
+    console.log("🔍 DEBUGGING - Primeras 3 líneas del texto:");
+    lines.forEach((line, i) => {
+      console.log(`   Línea ${i+1}: "${line}"`);
+    });
+  }
   
   return finalSSML;
 }
@@ -275,7 +317,7 @@ async function mergeAudioChunks(audioChunks) {
 }
 
 // Función para síntesis de voz con Google Text-to-Speech
-async function synthesizeSpeech(text, voiceId = 'female', speed = 1.0, useIntelligentPauses = true) {
+async function synthesizeSpeech(text, voiceId = 'female', speed = 1.0, useIntelligentPauses = true, title = null) {
   // Check if API key is configured
   if (!process.env.GOOGLE_TTS_API_KEY) {
     console.error('❌ GOOGLE_TTS_API_KEY no está configurada en las variables de entorno');
@@ -297,7 +339,9 @@ async function synthesizeSpeech(text, voiceId = 'female', speed = 1.0, useIntell
       console.log(`🎤 Processing chunk ${i + 1}/${chunks.length} (${chunks[i].length} chars)...`);
       
       try {
-        const chunkAudio = await synthesizeSingleChunk(chunks[i], voiceId, speed, useIntelligentPauses);
+        // Only pass title to the first chunk
+        const chunkTitle = (i === 0) ? title : null;
+        const chunkAudio = await synthesizeSingleChunk(chunks[i], voiceId, speed, useIntelligentPauses, chunkTitle);
         audioChunks.push(Buffer.from(chunkAudio));
         
         // Add a small delay between chunks to avoid rate limiting
@@ -317,13 +361,13 @@ async function synthesizeSpeech(text, voiceId = 'female', speed = 1.0, useIntell
     return mergedAudio;
   } else {
     // Text is short enough, process normally
-    return await synthesizeSingleChunk(text, voiceId, speed, useIntelligentPauses);
+    return await synthesizeSingleChunk(text, voiceId, speed, useIntelligentPauses, title);
   }
 }
 
 // Helper function to synthesize a single chunk
-async function synthesizeSingleChunk(text, voiceId = 'female', speed = 1.0, useIntelligentPauses = true) {
-  const textToSynthesize = useIntelligentPauses ? processTextWithIntelligentPauses(text) : `<speak>${escapeSSML(text)}</speak>`;
+async function synthesizeSingleChunk(text, voiceId = 'female', speed = 1.0, useIntelligentPauses = true, title = null) {
+  const textToSynthesize = useIntelligentPauses ? processTextWithIntelligentPauses(text, title) : `<speak>${escapeSSML(text)}</speak>`;
   
   // Check SSML size
   const ssmlBytes = Buffer.byteLength(textToSynthesize, 'utf8');
