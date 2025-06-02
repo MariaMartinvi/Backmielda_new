@@ -442,6 +442,30 @@ exports.constructPrompt = (storyParams) => {
   // Construir el prompt en el idioma seleccionado
   let prompt = `${languageInstruction}\n\n`;
   
+  // Añadir resumen claro de las preferencias del usuario
+  const userPreferencesSection = {
+    es: `PREFERENCIAS DEL USUARIO:
+📖 Tipo de historia: ${selectedType}
+⏱️ Duración: ${selectedLength} 
+🎯 Tema: "${topic}"
+👥 Audiencia: ${selectedAudience}
+🧠 Nivel de idioma: ${levelAndCreativity.es[languageLevel] ? levelAndCreativity.es[languageLevel].split('.')[0] : 'intermedio'}
+💡 Creatividad: ${selectedCreativity}${childNames && childNames.trim() ? `\n👦👧 Personajes a incluir: ${childNames}` : ''}
+
+`,
+    en: `USER PREFERENCES:
+📖 Story type: ${selectedType}
+⏱️ Duration: ${selectedLength}
+🎯 Theme: "${topic}" 
+👥 Audience: ${selectedAudience}
+🧠 Language level: ${levelAndCreativity.en[languageLevel] ? levelAndCreativity.en[languageLevel].split('.')[0] : 'intermediate'}
+💡 Creativity: ${selectedCreativity}${childNames && childNames.trim() ? `\n👦👧 Characters to include: ${childNames}` : ''}
+
+`
+  };
+  
+  prompt += userPreferencesSection[language] || userPreferencesSection.es;
+  
   // Añadir mensaje de niveles de idioma
   const selectedLanguageLevels = languageLevelsMessage[language] || languageLevelsMessage.es;
   prompt += `${selectedLanguageLevels.title}\n${selectedLanguageLevels.description}\n\n`;
@@ -586,7 +610,7 @@ INSTRUCCIONS ESPECIAIS PER UN CONTE DIVERTIT I ORIGINAL:
 - Inclou humor intel·ligent: situacions absurdes però creïbles, diàlegs enginyosos.
 - Comença directament amb acció o una situació intrigant, no amb presentacions llargues.
 - Afegeix almenys 2-3 obstacles o problemes divertits per resoldre.
-- Usa personatges amb personalitats úniques i defectes graciosos.
+- Usa personatges amb前所未有的个性和缺陷。
 - Inclou moments d'humor físic apropiat (ensopegades, confusions, etc.).
 - Acaba amb una resolució satisfactòria però no òbvia o predictible.
 - Els diàlegs han de sonar naturals, com parlen realment els nens.
