@@ -20,6 +20,28 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  // Email verification fields
+  emailVerificationToken: {
+    type: String,
+    required: false
+  },
+  emailVerificationExpires: {
+    type: Date,
+    required: false
+  },
+  // Password reset fields
+  passwordResetToken: {
+    type: String,
+    required: false
+  },
+  passwordResetExpires: {
+    type: Date,
+    required: false
+  },
+  isAdmin: {
+    type: Boolean,
+    default: false
+  },
   storiesGenerated: {
     type: Number,
     default: 0
@@ -66,6 +88,11 @@ userSchema.methods.checkAndResetMonthlyCount = function() {
 
 // Method to check if user can generate more stories
 userSchema.methods.canGenerateStory = function() {
+  // Admins have unlimited access
+  if (this.isAdmin) {
+    return true;
+  }
+  
   if (this.subscriptionStatus === 'active') {
     return true;
   }

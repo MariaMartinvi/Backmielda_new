@@ -1,7 +1,7 @@
 // routes/storyRoutes.js
 const express = require('express');
 const router = express.Router();
-const auth = require('../middleware/auth');
+const { auth } = require('../middleware/auth');
 const storyController = require('../controllers/storyController');
 
 // Generate story
@@ -49,10 +49,14 @@ router.post('/generate', (req, res, next) => {
 });
 
 // Generate audio for a story
-router.post('/:storyId/audio', storyController.generateAudio);
+router.post('/:storyId/audio', (req, res, next) => {
+  storyController.generateAudio(req, res, next);
+});
 
 // OpenAI API Health check
-router.get('/health/openai', storyController.healthCheck);
+router.get('/health/openai', (req, res) => {
+  storyController.healthCheck(req, res);
+});
 
 // Get remaining stories count for current user
 router.get('/remaining', auth, async (req, res) => {
@@ -83,6 +87,8 @@ router.get('/remaining', auth, async (req, res) => {
 });
 
 // Get story by ID
-router.get('/:id', storyController.getStoryById);
+router.get('/:id', (req, res, next) => {
+  storyController.getStoryById(req, res, next);
+});
 
-module.exports = router;
+module.exports = router; 

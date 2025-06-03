@@ -256,14 +256,18 @@ Escribe la historia en español.`;
       createdAt: new Date()
     });
 
-    // Update user story counts
-    console.log('👤 Updating user story counts...');
-    await User.findByIdAndUpdate(user._id, {
-      $inc: { 
-        storiesGenerated: 1,
-        monthlyStoriesGenerated: 1
-      }
-    });
+    // Update user story counts (skip for admins)
+    if (!user.isAdmin) {
+      console.log('👤 Updating user story counts...');
+      await User.findByIdAndUpdate(user._id, {
+        $inc: { 
+          storiesGenerated: 1,
+          monthlyStoriesGenerated: 1
+        }
+      });
+    } else {
+      console.log('👑 Admin user - skipping story count increment');
+    }
 
     console.log('✅ Story generation complete');
     res.json({
@@ -364,6 +368,12 @@ exports.generateAudio = async (req, res, next) => {
 };
 
 async function checkStoryGenerationLimit(user) {
+  // Admins have unlimited access
+  if (user.isAdmin) {
+    console.log('👑 Admin user detected - unlimited access granted');
+    return true;
+  }
+
   // Check and reset monthly count if needed
   user.checkAndResetMonthlyCount();
 
@@ -377,6 +387,11 @@ async function checkStoryGenerationLimit(user) {
 }
 
 async function getStoriesRemaining(user) {
+  // Admins have unlimited access
+  if (user.isAdmin) {
+    return 999999; // Infinite for display purposes
+  }
+
   // Check and reset monthly count if needed
   user.checkAndResetMonthlyCount();
 

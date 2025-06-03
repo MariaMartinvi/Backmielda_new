@@ -9,7 +9,10 @@ const auth = async (req, res, next) => {
 
     if (!authHeader) {
       console.log('No authorization header found');
-      return res.status(401).json({ message: 'Authentication required' });
+      return res.status(401).json({ 
+        error: 'Authentication required',
+        message: 'No authorization header provided' 
+      });
     }
 
     const token = authHeader.replace('Bearer ', '');
@@ -17,7 +20,10 @@ const auth = async (req, res, next) => {
 
     if (!token) {
       console.log('No token found in authorization header');
-      return res.status(401).json({ message: 'Authentication required' });
+      return res.status(401).json({ 
+        error: 'Authentication required',
+        message: 'No token provided' 
+      });
     }
 
     console.log('Verifying token with JWT_SECRET');
@@ -29,7 +35,19 @@ const auth = async (req, res, next) => {
 
     if (!user) {
       console.log('User not found in database');
-      return res.status(401).json({ message: 'User not found' });
+      return res.status(401).json({ 
+        error: 'Authentication failed',
+        message: 'User not found' 
+      });
+    }
+
+    // Check if user's email is verified
+    if (!user.isVerified) {
+      console.log('User email not verified:', user.email);
+      return res.status(401).json({ 
+        error: 'Email not verified',
+        message: 'Please verify your email address to access this resource' 
+      });
     }
 
     req.user = user;
@@ -44,13 +62,57 @@ const auth = async (req, res, next) => {
     });
 
     if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json({ message: 'Invalid token' });
+      return res.status(401).json({ 
+        error: 'Invalid token',
+        message: 'The provided token is invalid' 
+      });
     }
     if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({ message: 'Token expired' });
+      return res.status(401).json({ 
+        error: 'Token expired',
+        message: 'Your session has expired. Please log in again' 
+      });
     }
-    res.status(401).json({ message: 'Authentication failed' });
+    res.status(401).json({ 
+      error: 'Authentication failed',
+      message: 'Authentication verification failed' 
+    });
   }
 };
 
-module.exports = auth; 
+// Optional auth middleware (for routes that work with or without auth)
+const optionalAuth = async (req, res, next) => {
+  try {
+    const authHeader = req.header('Authorization');
+    
+    if (!authHeader) {
+      req.user = null;
+      return next();
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+    
+    if (!token) {
+      req.user = null;
+      return next();
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.id);
+    
+    if (user && user.isVerified) {
+      req.user = user;
+      req.token = token;
+    } else {
+      req.user = null;
+    }
+    
+    next();
+  } catch (error) {
+    // For optional auth, we don't fail on invalid tokens
+    req.user = null;
+    next();
+  }
+};
+
+module.exports = { auth, optionalAuth }; 
