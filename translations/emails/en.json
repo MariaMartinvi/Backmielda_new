@@ -1,0 +1,49 @@
+{
+  "verification": {
+    "subject": "Verify your AudioGretel account",
+    "title": "Welcome to AudioGretel!",
+    "subtitle": "Let's verify your email address",
+    "welcome": "Welcome to AudioGretel!",
+    "message": "Thank you for registering with AudioGretel. To complete your registration and start creating amazing stories, please verify your email address by clicking the button below:",
+    "buttonText": "Verify Email Address",
+    "cantClickButton": "If the button above doesn't work, copy and paste this link into your browser:",
+    "expiration": "This verification link will expire in 24 hours."
+  },
+  "passwordReset": {
+    "subject": "Reset your AudioGretel password",
+    "title": "Password Reset",
+    "subtitle": "Let's get you back into your account",
+    "heading": "Reset Your Password",
+    "message": "We received a request to reset your password. Click the button below to create a new password:",
+    "buttonText": "Reset Password",
+    "cantClickButton": "If the button above doesn't work, copy and paste this link into your browser:",
+    "expiration": "This password reset link will expire in 1 hour.",
+    "securityNote": "If you didn't request this password reset, you can safely ignore this email."
+  },
+  "welcome": {
+    "subject": "Welcome to AudioGretel!",
+    "title": "Welcome to AudioGretel!",
+    "subtitle": "Your journey begins here",
+    "heading": "Welcome to Your Story Creation Journey!",
+    "message": "We're excited to have you join our community of storytellers. Get ready to create amazing stories with our AI-powered platform.",
+    "featuresTitle": "What you can do with AudioGretel:",
+    "features": {
+      "freeStories": "Create up to 3 free stories per month",
+      "customize": "Customize your stories with different characters and settings",
+      "audio": "Generate high-quality audio narrations",
+      "premium": "Upgrade to Premium for unlimited stories and more features"
+    },
+    "buttonText": "Start Creating Stories",
+    "footer": "Thank you for choosing AudioGretel. We can't wait to see the stories you'll create!"
+  },
+  "system": {
+    "emailConfigError": "❌ Email configuration error:",
+    "emailServerReady": "✅ Email server ready to send messages",
+    "verificationEmailSent": "✅ Verification email sent to:",
+    "verificationEmailError": "❌ Error sending verification email:",
+    "passwordResetEmailSent": "✅ Password reset email sent to:",
+    "passwordResetEmailError": "❌ Error sending password reset email:",
+    "welcomeEmailSent": "✅ Welcome email sent to:",
+    "welcomeEmailError": "❌ Error sending welcome email:"
+  }
+} 

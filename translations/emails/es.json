@@ -1,0 +1,49 @@
+{
+  "verification": {
+    "subject": "Verifica tu cuenta de AudioGretel",
+    "title": "¡Bienvenido a AudioGretel!",
+    "subtitle": "Verifiquemos tu correo electrónico",
+    "welcome": "¡Bienvenido a AudioGretel!",
+    "message": "Gracias por registrarte en AudioGretel. Para completar tu registro y comenzar a crear historias increíbles, por favor verifica tu correo electrónico haciendo clic en el botón de abajo:",
+    "buttonText": "Verificar Correo Electrónico",
+    "cantClickButton": "Si el botón de arriba no funciona, copia y pega este enlace en tu navegador:",
+    "expiration": "Este enlace de verificación expirará en 24 horas."
+  },
+  "passwordReset": {
+    "subject": "Restablece tu contraseña de AudioGretel",
+    "title": "Restablecer Contraseña",
+    "subtitle": "Volvamos a tu cuenta",
+    "heading": "Restablece Tu Contraseña",
+    "message": "Recibimos una solicitud para restablecer tu contraseña. Haz clic en el botón de abajo para crear una nueva contraseña:",
+    "buttonText": "Restablecer Contraseña",
+    "cantClickButton": "Si el botón de arriba no funciona, copia y pega este enlace en tu navegador:",
+    "expiration": "Este enlace de restablecimiento expirará en 1 hora.",
+    "securityNote": "Si no solicitaste este restablecimiento de contraseña, puedes ignorar este correo de forma segura."
+  },
+  "welcome": {
+    "subject": "¡Bienvenido a AudioGretel!",
+    "title": "¡Bienvenido a AudioGretel!",
+    "subtitle": "Tu viaje comienza aquí",
+    "heading": "¡Bienvenido a tu Viaje de Creación de Historias!",
+    "message": "Estamos emocionados de que te unas a nuestra comunidad de creadores de historias. Prepárate para crear historias increíbles con nuestra plataforma impulsada por IA.",
+    "featuresTitle": "Lo que puedes hacer con AudioGretel:",
+    "features": {
+      "freeStories": "Crear hasta 3 historias gratuitas al mes",
+      "customize": "Personalizar tus historias con diferentes personajes y escenarios",
+      "audio": "Generar narraciones de audio de alta calidad",
+      "premium": "Actualiza a Premium para historias ilimitadas y más funciones"
+    },
+    "buttonText": "Comenzar a Crear Historias",
+    "footer": "Gracias por elegir AudioGretel. ¡No podemos esperar a ver las historias que crearás!"
+  },
+  "system": {
+    "emailConfigError": "❌ Error en la configuración del email:",
+    "emailServerReady": "✅ Servidor de email listo para enviar mensajes",
+    "verificationEmailSent": "✅ Email de verificación enviado a:",
+    "verificationEmailError": "❌ Error enviando email de verificación:",
+    "passwordResetEmailSent": "✅ Email de recuperación enviado a:",
+    "passwordResetEmailError": "❌ Error enviando email de recuperación:",
+    "welcomeEmailSent": "✅ Email de bienvenida enviado a:",
+    "welcomeEmailError": "❌ Error enviando email de bienvenida:"
+  }
+} 

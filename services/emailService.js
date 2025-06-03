@@ -1,4 +1,5 @@
 const nodemailer = require('nodemailer');
+const translations = require('../utils/translations');
 
 class EmailService {
   constructor() {
@@ -16,34 +17,35 @@ class EmailService {
     });
 
     // Verify connection configuration
-    this.transporter.verify(function(error, success) {
+    this.transporter.verify((error, success) => {
       if (error) {
-        console.error('❌ Error en la configuración del email:', error);
+        console.error(translations.getTranslation('system.emailConfigError', 'en'), error);
       } else {
-        console.log('✅ Servidor de email listo para enviar mensajes');
+        console.log(translations.getTranslation('system.emailServerReady', 'en'));
       }
     });
   }
 
-  async sendVerificationEmail(email, token) {
+  async sendVerificationEmail(email, token, language = 'en') {
     const verificationUrl = `${process.env.FRONTEND_URL}/verify-email?token=${token}`;
+    const t = translations.getTranslation.bind(translations);
     
     const mailOptions = {
       from: 'noreply@audiogretel.com',
       to: email,
-      subject: '✅ Verifica tu cuenta - Cuentos Personalizados',
+      subject: t('verification.subject', language),
       html: `
         <div style="max-width: 600px; margin: 0 auto; font-family: Arial, sans-serif;">
           <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-            <h1 style="color: white; margin: 0; font-size: 28px;">🎭 Cuentos Personalizados</h1>
-            <p style="color: white; margin: 10px 0 0 0; font-size: 16px;">Verificación de cuenta</p>
+            <h1 style="color: white; margin: 0; font-size: 28px;">${t('verification.title', language)}</h1>
+            <p style="color: white; margin: 10px 0 0 0; font-size: 16px;">${t('verification.subtitle', language)}</p>
           </div>
           
           <div style="background: white; padding: 40px; border-radius: 0 0 10px 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-            <h2 style="color: #333; text-align: center; margin-bottom: 30px;">¡Bienvenido/a!</h2>
+            <h2 style="color: #333; text-align: center; margin-bottom: 30px;">${t('verification.welcome', language)}</h2>
             
             <p style="color: #666; font-size: 16px; line-height: 1.5;">
-              Gracias por registrarte en Cuentos Personalizados. Para completar tu registro y comenzar a crear historias mágicas, necesitas verificar tu dirección de email.
+              ${t('verification.message', language)}
             </p>
             
             <div style="text-align: center; margin: 30px 0;">
@@ -57,12 +59,12 @@ class EmailService {
                         font-size: 16px;
                         display: inline-block;
                         box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                ✅ Verificar Email
+                ${t('verification.buttonText', language)}
               </a>
             </div>
             
             <p style="color: #888; font-size: 14px; text-align: center; margin-top: 30px;">
-              Si no puedes hacer clic en el botón, copia y pega este enlace en tu navegador:
+              ${t('verification.cantClickButton', language)}
             </p>
             <p style="color: #667eea; font-size: 14px; text-align: center; word-break: break-all;">
               ${verificationUrl}
@@ -70,7 +72,7 @@ class EmailService {
             
             <div style="border-top: 1px solid #eee; margin-top: 30px; padding-top: 20px; text-align: center;">
               <p style="color: #999; font-size: 12px; margin: 0;">
-                Este enlace expira en 24 horas. Si no solicitaste esta verificación, puedes ignorar este email.
+                ${t('verification.expiration', language)}
               </p>
             </div>
           </div>
@@ -80,32 +82,33 @@ class EmailService {
 
     try {
       await this.transporter.sendMail(mailOptions);
-      console.log(`✅ Email de verificación enviado a: ${email}`);
+      console.log(translations.getTranslation('system.verificationEmailSent', language), email);
     } catch (error) {
-      console.error('❌ Error enviando email de verificación:', error);
-      throw new Error('Error enviando email de verificación');
+      console.error(translations.getTranslation('system.verificationEmailError', language), error);
+      throw new Error(translations.getTranslation('system.verificationEmailError', language));
     }
   }
 
-  async sendPasswordResetEmail(email, token) {
+  async sendPasswordResetEmail(email, token, language = 'en') {
     const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
+    const t = translations.getTranslation.bind(translations);
     
     const mailOptions = {
       from: 'noreply@audiogretel.com',
       to: email,
-      subject: '🔐 Recuperar contraseña - Cuentos Personalizados',
+      subject: t('passwordReset.subject', language),
       html: `
         <div style="max-width: 600px; margin: 0 auto; font-family: Arial, sans-serif;">
           <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-            <h1 style="color: white; margin: 0; font-size: 28px;">🎭 Cuentos Personalizados</h1>
-            <p style="color: white; margin: 10px 0 0 0; font-size: 16px;">Recuperación de contraseña</p>
+            <h1 style="color: white; margin: 0; font-size: 28px;">${t('passwordReset.title', language)}</h1>
+            <p style="color: white; margin: 10px 0 0 0; font-size: 16px;">${t('passwordReset.subtitle', language)}</p>
           </div>
           
           <div style="background: white; padding: 40px; border-radius: 0 0 10px 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-            <h2 style="color: #333; text-align: center; margin-bottom: 30px;">🔐 Restablecer contraseña</h2>
+            <h2 style="color: #333; text-align: center; margin-bottom: 30px;">${t('passwordReset.heading', language)}</h2>
             
             <p style="color: #666; font-size: 16px; line-height: 1.5;">
-              Hemos recibido una solicitud para restablecer la contraseña de tu cuenta. Si fuiste tú quien hizo esta solicitud, haz clic en el botón de abajo para crear una nueva contraseña.
+              ${t('passwordReset.message', language)}
             </p>
             
             <div style="text-align: center; margin: 30px 0;">
@@ -119,12 +122,12 @@ class EmailService {
                         font-size: 16px;
                         display: inline-block;
                         box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                🔐 Restablecer Contraseña
+                ${t('passwordReset.buttonText', language)}
               </a>
             </div>
             
             <p style="color: #888; font-size: 14px; text-align: center; margin-top: 30px;">
-              Si no puedes hacer clic en el botón, copia y pega este enlace en tu navegador:
+              ${t('passwordReset.cantClickButton', language)}
             </p>
             <p style="color: #f5576c; font-size: 14px; text-align: center; word-break: break-all;">
               ${resetUrl}
@@ -132,10 +135,10 @@ class EmailService {
             
             <div style="border-top: 1px solid #eee; margin-top: 30px; padding-top: 20px; text-align: center;">
               <p style="color: #999; font-size: 12px; margin: 0;">
-                Este enlace expira en 1 hora. Si no solicitaste restablecer tu contraseña, puedes ignorar este email con seguridad.
+                ${t('passwordReset.expiration', language)}
               </p>
               <p style="color: #999; font-size: 12px; margin: 10px 0 0 0;">
-                Por tu seguridad, nunca compartas este enlace con nadie.
+                ${t('passwordReset.securityNote', language)}
               </p>
             </div>
           </div>
@@ -145,39 +148,41 @@ class EmailService {
 
     try {
       await this.transporter.sendMail(mailOptions);
-      console.log(`✅ Email de recuperación enviado a: ${email}`);
+      console.log(translations.getTranslation('system.passwordResetEmailSent', language), email);
     } catch (error) {
-      console.error('❌ Error enviando email de recuperación:', error);
-      throw new Error('Error enviando email de recuperación');
+      console.error(translations.getTranslation('system.passwordResetEmailError', language), error);
+      throw new Error(translations.getTranslation('system.passwordResetEmailError', language));
     }
   }
 
-  async sendWelcomeEmail(email) {
+  async sendWelcomeEmail(email, language = 'en') {
+    const t = translations.getTranslation.bind(translations);
+    
     const mailOptions = {
       from: 'noreply@audiogretel.com',
       to: email,
-      subject: '🎉 ¡Bienvenido/a a Cuentos Personalizados!',
+      subject: t('welcome.subject', language),
       html: `
         <div style="max-width: 600px; margin: 0 auto; font-family: Arial, sans-serif;">
           <div style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-            <h1 style="color: white; margin: 0; font-size: 28px;">🎭 Cuentos Personalizados</h1>
-            <p style="color: white; margin: 10px 0 0 0; font-size: 16px;">¡Tu cuenta está lista!</p>
+            <h1 style="color: white; margin: 0; font-size: 28px;">${t('welcome.title', language)}</h1>
+            <p style="color: white; margin: 10px 0 0 0; font-size: 16px;">${t('welcome.subtitle', language)}</p>
           </div>
           
           <div style="background: white; padding: 40px; border-radius: 0 0 10px 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-            <h2 style="color: #333; text-align: center; margin-bottom: 30px;">🎉 ¡Email verificado exitosamente!</h2>
+            <h2 style="color: #333; text-align: center; margin-bottom: 30px;">${t('welcome.heading', language)}</h2>
             
             <p style="color: #666; font-size: 16px; line-height: 1.5; text-align: center;">
-              ¡Felicidades! Tu cuenta ha sido verificada y ya puedes empezar a crear historias mágicas y personalizadas.
+              ${t('welcome.message', language)}
             </p>
             
             <div style="background: #f8f9fa; padding: 20px; border-radius: 10px; margin: 30px 0;">
-              <h3 style="color: #333; margin: 0 0 15px 0;">✨ ¿Qué puedes hacer ahora?</h3>
+              <h3 style="color: #333; margin: 0 0 15px 0;">${t('welcome.featuresTitle', language)}</h3>
               <ul style="color: #666; margin: 0; padding-left: 20px;">
-                <li style="margin-bottom: 8px;">📖 Generar hasta 3 cuentos gratuitos al mes</li>
-                <li style="margin-bottom: 8px;">🎨 Personalizar historias con nombres y preferencias</li>
-                <li style="margin-bottom: 8px;">🔊 Escuchar tus cuentos con audio de alta calidad</li>
-                <li style="margin-bottom: 8px;">💎 Actualizar a Premium para cuentos ilimitados</li>
+                <li style="margin-bottom: 8px;">${t('welcome.features.freeStories', language)}</li>
+                <li style="margin-bottom: 8px;">${t('welcome.features.customize', language)}</li>
+                <li style="margin-bottom: 8px;">${t('welcome.features.audio', language)}</li>
+                <li style="margin-bottom: 8px;">${t('welcome.features.premium', language)}</li>
               </ul>
             </div>
             
@@ -192,13 +197,13 @@ class EmailService {
                         font-size: 16px;
                         display: inline-block;
                         box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                🚀 Comenzar a Crear Cuentos
+                ${t('welcome.buttonText', language)}
               </a>
             </div>
             
             <div style="border-top: 1px solid #eee; margin-top: 30px; padding-top: 20px; text-align: center;">
               <p style="color: #999; font-size: 12px; margin: 0;">
-                ¡Gracias por unirte a nuestra comunidad de narradores!
+                ${t('welcome.footer', language)}
               </p>
             </div>
           </div>
@@ -208,9 +213,9 @@ class EmailService {
 
     try {
       await this.transporter.sendMail(mailOptions);
-      console.log(`✅ Email de bienvenida enviado a: ${email}`);
+      console.log(translations.getTranslation('system.welcomeEmailSent', language), email);
     } catch (error) {
-      console.error('❌ Error enviando email de bienvenida:', error);
+      console.error(translations.getTranslation('system.welcomeEmailError', language), error);
       // No lanzamos error aquí porque es solo informativo
     }
   }
