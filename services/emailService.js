@@ -29,7 +29,7 @@ class EmailService {
     const verificationUrl = `${process.env.FRONTEND_URL}/verify-email?token=${token}`;
     
     const mailOptions = {
-      from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
+      from: 'noreply@audiogretel.com',
       to: email,
       subject: '✅ Verifica tu cuenta - Cuentos Personalizados',
       html: `
@@ -91,7 +91,7 @@ class EmailService {
     const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
     
     const mailOptions = {
-      from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
+      from: 'noreply@audiogretel.com',
       to: email,
       subject: '🔐 Recuperar contraseña - Cuentos Personalizados',
       html: `
@@ -154,7 +154,7 @@ class EmailService {
 
   async sendWelcomeEmail(email) {
     const mailOptions = {
-      from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
+      from: 'noreply@audiogretel.com',
       to: email,
       subject: '🎉 ¡Bienvenido/a a Cuentos Personalizados!',
       html: `
