@@ -54,7 +54,7 @@ router.post('/:storyId/audio', (req, res, next) => {
 });
 
 // Publish story
-router.post('/:storyId/publish', storyController.publishStory);
+router.post('/:storyId/publish', auth, storyController.publishStory);
 
 // OpenAI API Health check
 router.get('/health', storyController.healthCheck);

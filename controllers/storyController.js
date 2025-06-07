@@ -682,14 +682,20 @@ exports.publishStory = async (req, res) => {
         }
 
         const { storyId } = req.params;
-        const { email } = req.body;
 
-        if (!storyId || !email) {
-            return res.status(400).json({ error: 'Story ID and email are required' });
+        if (!storyId) {
+            return res.status(400).json({ error: 'Story ID is required' });
         }
 
+        // Check if user is authenticated
+        if (!req.user || !req.user.email) {
+            return res.status(401).json({ error: 'Authentication required' });
+        }
+
+        const authenticatedUserEmail = req.user.email;
+
         // Check if user's email is verified (Firebase Auth)
-        if (req.user && !req.user.emailVerified) {
+        if (!req.user.emailVerified) {
             return res.status(403).json({ 
                 error: 'Email not verified',
                 message: 'Debes verificar tu email antes de publicar cuentos. Revisa tu bandeja de entrada.',
@@ -706,16 +712,20 @@ exports.publishStory = async (req, res) => {
         // Debug logging for authorization
         console.log('🔍 [PUBLISH] Authorization check:');
         console.log('Story email:', story.email);
-        console.log('Request email:', email);
+        console.log('Authenticated user email:', authenticatedUserEmail);
         console.log('Story email type:', typeof story.email);
-        console.log('Request email type:', typeof email);
-        console.log('Emails match:', story.email === email);
-        console.log('User from auth:', req.user ? req.user.email : 'No user');
+        console.log('Auth email type:', typeof authenticatedUserEmail);
+        console.log('Emails match:', story.email === authenticatedUserEmail);
 
-        // Verify ownership
-        if (story.email !== email) {
+        // Verify ownership using authenticated user's email
+        if (story.email !== authenticatedUserEmail) {
             console.log('❌ [PUBLISH] Email mismatch - Authorization failed');
-            return res.status(403).json({ error: 'Unauthorized to publish this story' });
+            console.log('❌ Story belongs to:', story.email);
+            console.log('❌ User is authenticated as:', authenticatedUserEmail);
+            return res.status(403).json({ 
+                error: 'Unauthorized to publish this story',
+                message: 'You can only publish stories that you created.'
+            });
         }
 
         console.log('✅ [PUBLISH] Authorization successful - proceeding with publish');
@@ -818,7 +828,7 @@ exports.publishStory = async (req, res) => {
                 textPath: textPath,
                 title: story.title,
                 createdAt: new Date(),
-                email: email,
+                email: authenticatedUserEmail, // Use authenticated user's email
                 published: true,
                 storyType: story.storyType || "original", // Use actual story type
                 storyLength: story.storyLength || "medium" // Use actual story length
