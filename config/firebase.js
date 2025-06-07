@@ -8,13 +8,15 @@ if (!admin.apps.length) {
     const requiredEnvVars = {
       projectId: process.env.FIREBASE_PROJECT_ID || process.env.GOOGLE_PROJECT_ID || 'cuentacuentos-b2e64',
       privateKey: process.env.FIREBASE_PRIVATE_KEY,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      storageBucket: process.env.FIREBASE_STORAGE_BUCKET || 'cuentacuentos-b2e64.firebasestorage.app'
     };
 
     console.log('🔥 Firebase configuration check:');
     console.log('Project ID:', requiredEnvVars.projectId);
     console.log('Client Email:', requiredEnvVars.clientEmail ? 'Set' : 'Not set');
     console.log('Private Key:', requiredEnvVars.privateKey ? 'Set' : 'Not set');
+    console.log('Storage Bucket:', requiredEnvVars.storageBucket);
 
     // Try different initialization methods
     let initialized = false;
@@ -27,7 +29,8 @@ if (!admin.apps.length) {
         
         admin.initializeApp({
           credential: admin.credential.cert(serviceAccount),
-          databaseURL: "https://cuentacuentos-b2e64-default-rtdb.firebaseio.com"
+          databaseURL: "https://cuentacuentos-b2e64-default-rtdb.firebaseio.com",
+          storageBucket: requiredEnvVars.storageBucket
         });
         
         console.log('🔥 Firebase Admin initialized with service account file');
@@ -49,7 +52,8 @@ if (!admin.apps.length) {
             clientEmail: requiredEnvVars.clientEmail,
             privateKey: privateKey
           }),
-          databaseURL: "https://cuentacuentos-b2e64-default-rtdb.firebaseio.com"
+          databaseURL: "https://cuentacuentos-b2e64-default-rtdb.firebaseio.com",
+          storageBucket: requiredEnvVars.storageBucket
         });
         
         console.log('🔥 Firebase Admin initialized with environment variables');
@@ -69,7 +73,8 @@ if (!admin.apps.length) {
         admin.initializeApp({
           credential: admin.credential.applicationDefault(),
           projectId: requiredEnvVars.projectId,
-          databaseURL: "https://cuentacuentos-b2e64-default-rtdb.firebaseio.com"
+          databaseURL: "https://cuentacuentos-b2e64-default-rtdb.firebaseio.com",
+          storageBucket: requiredEnvVars.storageBucket
         });
         
         console.log('🔥 Firebase Admin initialized with application default credentials');
@@ -85,7 +90,8 @@ if (!admin.apps.length) {
         // For basic functionality, we can initialize with minimal config
         admin.initializeApp({
           projectId: requiredEnvVars.projectId,
-          databaseURL: "https://cuentacuentos-b2e64-default-rtdb.firebaseio.com"
+          databaseURL: "https://cuentacuentos-b2e64-default-rtdb.firebaseio.com",
+          storageBucket: requiredEnvVars.storageBucket
         });
         
         console.log('🔥 Firebase Admin initialized with minimal configuration');
@@ -109,6 +115,7 @@ if (!admin.apps.length) {
     console.error('GOOGLE_PROJECT_ID:', process.env.GOOGLE_PROJECT_ID || 'Not set');
     console.error('FIREBASE_CLIENT_EMAIL:', process.env.FIREBASE_CLIENT_EMAIL ? 'Set' : 'Not set');
     console.error('FIREBASE_PRIVATE_KEY:', process.env.FIREBASE_PRIVATE_KEY ? 'Set' : 'Not set');
+    console.error('FIREBASE_STORAGE_BUCKET:', process.env.FIREBASE_STORAGE_BUCKET || 'Not set');
     console.error('GOOGLE_APPLICATION_CREDENTIALS:', process.env.GOOGLE_APPLICATION_CREDENTIALS || 'Not set');
     
     throw error;
