@@ -4,7 +4,7 @@ const { admin, db } = require('../config/firebase');
 const rateStory = async (req, res) => {
   try {
     // Check if Firebase is initialized
-    if (!firebaseInitialized || !db) {
+    if (!db) {
       return res.status(503).json({
         error: 'Service unavailable',
         message: 'Firebase is not configured. Rating system is temporarily disabled.'

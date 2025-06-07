@@ -38,7 +38,24 @@ console.log('OpenAI API Key: No configurada');
 
 // Initialize Firebase Admin
 console.log('🔥 Initializing Firebase Admin...');
-require('./config/firebase');
+try {
+  require('./config/firebase');
+  console.log('✅ Firebase Admin initialization complete');
+} catch (error) {
+  console.error('❌ Critical Firebase initialization error:', error);
+  console.error('This will cause authentication failures');
+  
+  // Log environment variables for debugging
+  console.error('🔍 Firebase Environment Variables Debug:');
+  console.error('FIREBASE_PROJECT_ID:', process.env.FIREBASE_PROJECT_ID || 'NOT SET');
+  console.error('GOOGLE_PROJECT_ID:', process.env.GOOGLE_PROJECT_ID || 'NOT SET');
+  console.error('FIREBASE_CLIENT_EMAIL:', process.env.FIREBASE_CLIENT_EMAIL ? 'SET' : 'NOT SET');
+  console.error('FIREBASE_PRIVATE_KEY:', process.env.FIREBASE_PRIVATE_KEY ? 'SET' : 'NOT SET');
+  console.error('GOOGLE_APPLICATION_CREDENTIALS:', process.env.GOOGLE_APPLICATION_CREDENTIALS || 'NOT SET');
+  
+  // Don't exit the process, but warn about limited functionality
+  console.error('⚠️ Server will continue but authentication may not work properly');
+}
 
 // Only after environment variables are loaded, require other modules
 const express = require('express');

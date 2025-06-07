@@ -5,50 +5,19 @@ const googleTtsService = require('../utils/googleTtsService');
 const { mixAudioWithBackground, getRandomMusicTrack, BACKGROUND_MUSIC_TRACKS } = require('../utils/audioMixer');
 const openaiService = require('../utils/openaiService');
 const { constructPrompt, extractTitle } = require('../utils/helpers');
-const admin = require('firebase-admin');
+const { admin, db } = require('../config/firebase');
 const fs = require('fs').promises;
 const path = require('path');
 const sharp = require('sharp');
 console.log("OpenAI API Key:", process.env.OPENAI_API_KEY ? "Configurada (primeros caracteres: " + process.env.OPENAI_API_KEY.substring(0, 5) + "...)" : "No configurada");
 
-// Initialize Firebase Admin if not already initialized and credentials exist
-let firebaseInitialized = false;
-let db = null;
+// Use Firebase instances from config
 let bucket = null;
-
-if (!admin.apps.length) {
-    try {
-        // Use environment variables for Firebase credentials
-        if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_PRIVATE_KEY && process.env.FIREBASE_CLIENT_EMAIL) {
-            const serviceAccount = {
-                type: "service_account",
-                project_id: process.env.FIREBASE_PROJECT_ID,
-                private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
-                private_key: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-                client_email: process.env.FIREBASE_CLIENT_EMAIL,
-                client_id: process.env.FIREBASE_CLIENT_ID,
-                auth_uri: "https://accounts.google.com/o/oauth2/auth",
-                token_uri: "https://oauth2.googleapis.com/token",
-                auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
-                client_x509_cert_url: process.env.FIREBASE_CLIENT_X509_CERT_URL
-            };
-
-            admin.initializeApp({
-                credential: admin.credential.cert(serviceAccount),
-                storageBucket: process.env.FIREBASE_STORAGE_BUCKET || 'cuentacuentos-b2e64.firebasestorage.app'
-            });
-            db = admin.firestore();
-            bucket = admin.storage().bucket();
-            firebaseInitialized = true;
-            console.log('🔥 Firebase initialized successfully from environment variables');
-        } else {
-            console.log('⚠️  Firebase credentials not found in environment variables');
-            console.log('📝 Story publishing will be disabled until Firebase is configured');
-        }
-    } catch (error) {
-        console.error('❌ Error initializing Firebase:', error.message);
-        console.log('📝 Story publishing will be disabled until Firebase is configured');
-    }
+try {
+  bucket = admin.storage().bucket();
+  console.log('✅ Firebase Storage bucket configured for story controller');
+} catch (error) {
+  console.error('❌ Error configuring Firebase Storage bucket:', error.message);
 }
 
 exports.generateStory = async (req, res, next) => {
@@ -694,7 +663,7 @@ async function generateStoryImage(title) {
 exports.publishStory = async (req, res) => {
     try {
         // Check if Firebase is initialized
-        if (!firebaseInitialized) {
+        if (!bucket) {
             return res.status(503).json({ 
                 error: 'Publishing service unavailable', 
                 message: 'Firebase Storage is not configured. Please contact administrator.' 
