@@ -13,12 +13,20 @@ console.log("OpenAI API Key:", process.env.OPENAI_API_KEY ? "Configurada (primer
 
 // Use Firebase instances from config
 let bucket = null;
-try {
-  bucket = admin.storage().bucket();
-  console.log('✅ Firebase Storage bucket configured for story controller');
-} catch (error) {
-  console.error('❌ Error configuring Firebase Storage bucket:', error.message);
-}
+
+// Function to get Firebase Storage bucket
+const getFirebaseStorageBucket = () => {
+  if (!bucket) {
+    try {
+      bucket = admin.storage().bucket();
+      console.log('✅ Firebase Storage bucket configured for story controller');
+    } catch (error) {
+      console.error('❌ Error configuring Firebase Storage bucket:', error.message);
+      throw new Error('Firebase Storage not available');
+    }
+  }
+  return bucket;
+};
 
 exports.generateStory = async (req, res, next) => {
   console.log('📝 Story generation request received:', req.body?.topic || 'No topic provided');
@@ -632,6 +640,7 @@ exports.healthCheck = async (req, res) => {
 // Function to upload file to Firebase Storage
 async function uploadToFirebaseStorage(localFilePath, storagePath) {
     try {
+        const bucket = getFirebaseStorageBucket();
         await bucket.upload(localFilePath, {
             destination: storagePath,
             metadata: {
@@ -662,8 +671,10 @@ async function generateStoryImage(title) {
 // Function to publish story
 exports.publishStory = async (req, res) => {
     try {
-        // Check if Firebase is initialized
-        if (!bucket) {
+        // Check if Firebase Storage is available
+        try {
+            getFirebaseStorageBucket();
+        } catch (error) {
             return res.status(503).json({ 
                 error: 'Publishing service unavailable', 
                 message: 'Firebase Storage is not configured. Please contact administrator.' 
