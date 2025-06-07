@@ -96,10 +96,6 @@ exports.generateCompletion = async (prompt, systemMessage, storyParams) => {
       throw new Error('OpenAI API key is not configured');
     }
 
-    const openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY
-    });
-
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
@@ -380,10 +376,6 @@ exports.generateImage = async (prompt) => {
     if (!process.env.OPENAI_API_KEY) {
       throw new Error('OpenAI API key is not configured');
     }
-
-    const openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY
-    });
 
     const response = await openai.images.generate({
       model: "dall-e-3",

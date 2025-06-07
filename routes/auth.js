@@ -1,8 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const passport = require('passport');
-const jwt = require('jsonwebtoken');
+// const passport = require('passport');
+// const jwt = require('jsonwebtoken');
 
+// Passport-based Google Auth routes commented out - now using Firebase Auth
+// TODO: Remove these routes if Firebase Auth is working correctly
+
+/*
 // Ruta de prueba
 router.get('/test', (req, res) => {
   res.json({ message: 'Google auth routes are working' });
@@ -94,5 +98,6 @@ router.get('/logout', (req, res) => {
     res.redirect('/');
   });
 });
+*/
 
 module.exports = router; 

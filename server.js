@@ -2,7 +2,7 @@
 const path = require('path');
 const fs = require('fs');
 const dotenv = require('dotenv');
-const MongoStore = require('connect-mongo');
+const { admin, db } = require('./config/firebase'); // Use Firebase instead of MongoDB
 
 // Load environment variables
 const envPath = path.resolve(__dirname, '.env');
@@ -62,17 +62,13 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
-const mongoose = require('mongoose');
-const session = require('express-session');
-const passport = require('./config/passport');
 const storyRoutes = require('./routes/storyRoutes');
-const authRoutes = require('./routes/authRoutes');
-const googleAuthRoutes = require('./routes/auth');
-const stripeRoutes = require('./routes/stripeRoutes');
+// const authRoutes = require('./routes/authRoutes'); // Firebase Auth handled in frontend
+// const stripeRoutes = require('./routes/stripeRoutes'); // Needs Firebase update
+// const subscriptionRoutes = require('./routes/subscriptionRoutes'); // Needs Firebase update
+// const newsletterRoutes = require('./routes/newsletterRoutes'); // Needs Firebase update
+// const ratingsRoutes = require('./routes/ratingsRoutes'); // Needs Firebase update
 const audioRoutes = require('./routes/audioRoutes');
-const subscriptionRoutes = require('./routes/subscriptionRoutes');
-const newsletterRoutes = require('./routes/newsletterRoutes');
-const ratingsRoutes = require('./routes/ratingsRoutes');
 
 // Create Express app
 const app = express();
@@ -99,101 +95,39 @@ app.use((req, res, next) => {
 });
 
 // Middleware
-app.use((req, res, next) => {
-  if (req.originalUrl === '/api/stripe/webhook') {
-    next();
-  } else {
-    express.json()(req, res, next);
-  }
-});
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Configuración de sesión
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'your-secret-key',
-  resave: false,
-  saveUninitialized: false,
-  store: MongoStore.create({
-    mongoUrl: process.env.MONGODB_URI,
-    ttl: 24 * 60 * 60 // 1 day
-  }),
-  cookie: {
-    secure: process.env.NODE_ENV === 'production',
-    httpOnly: true,
-    maxAge: 24 * 60 * 60 * 1000, // 1 day
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
-  }
-}));
-
-// Inicializar Passport
-app.use(passport.initialize());
-app.use(passport.session());
-
-// Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-  serverSelectionTimeoutMS: 5000,
-  socketTimeoutMS: 45000,
-  family: 4
-})
-.then(() => {
-  console.log('Connected to MongoDB');
-})
-.catch(err => {
-  console.error('MongoDB connection error:', err);
-  process.exit(1);
-});
+// Firebase is configured in ./config/firebase and imported at the top
+console.log('🔥 Using Firebase/Firestore instead of MongoDB');
 
 // CORS configuration
-const allowedOrigins = [
-  'http://localhost:3000',
-  'http://localhost:5001',
-  'https://www.audiogretel.com',
-  'https://audiogretel.com',
-  'https://audiogretel.netlify.app',
-  'https://audiogretel.vercel.app'
-];
-
-console.log('Allowed origins:', allowedOrigins);
-console.log('NODE_ENV:', process.env.NODE_ENV);
-
-app.use(cors({
-  origin: function(origin, callback) {
-    // Allow requests with no origin (like mobile apps, curl, postman)
-    if (!origin) {
-      console.log('ℹ️ Request with no origin header');
-      return callback(null, true);
-    }
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Define allowed origins
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'https://www.audiogretel.com',
+      'https://audiogretel.com'
+    ];
+    
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
     
     if (allowedOrigins.indexOf(origin) !== -1) {
-      console.log('✅ Allowed origin:', origin);
       callback(null, true);
     } else {
-      console.log('❌ Blocked origin:', origin, 'Allowed:', allowedOrigins);
-      // En desarrollo, permitir cualquier origen localhost
-      if (process.env.NODE_ENV === 'development' && origin.includes('localhost')) {
-        console.log('🔧 Development mode: allowing localhost origin');
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'));
-      }
+      console.log('❌ CORS blocked origin:', origin);
+      callback(new Error('Not allowed by CORS'));
     }
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: [
-    'Content-Type', 
-    'Authorization', 
-    'X-Requested-With', 
-    'Accept', 
-    'Origin',
-    'Cache-Control',
-    'X-Auth-Token'
-  ],
-  exposedHeaders: ['Content-Range', 'X-Content-Range'],
-  optionsSuccessStatus: 200 // Para compatibilidad con navegadores legacy
-}));
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  optionsSuccessStatus: 200 // Some legacy browsers (IE11, various SmartTVs) choke on 204
+};
+
+app.use(cors(corsOptions));
 
 // Security middleware - optimizado para Firebase Auth
 app.use(helmet({
@@ -229,41 +163,14 @@ app.use((req, res, next) => {
   next();
 });
 
-// Rate limiting - mejorado para Render
+// Rate limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
-  max: process.env.NODE_ENV === 'development' ? 1000 : 100, // Más permisivo en desarrollo
-  message: {
-    error: 'Too many requests',
-    retryAfter: '15 minutes'
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-  // Configuración específica para Render
-  skip: (req) => {
-    // Skip rate limiting para health checks
-    if (req.path === '/health' || req.path === '/test') {
-      return true;
-    }
-    return false;
-  },
-  keyGenerator: (req) => {
-    // En producción, usar IP real desde proxy
-    if (process.env.NODE_ENV === 'production') {
-      return req.ip || req.connection.remoteAddress || 'unknown';
-    }
-    // En desarrollo, usar IP directa
-    return req.ip || req.connection.remoteAddress || 'unknown';
-  },
-  onLimitReached: (req, res, options) => {
-    console.log(`🚨 Rate limit reached for IP: ${req.ip}, Path: ${req.path}`);
-  }
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: 'Too many requests from this IP, please try again later.'
 });
 
-// Aplicar rate limiter solo a rutas específicas
-app.use('/api/stories/generate', limiter);
-app.use('/api/auth', limiter);
-app.use('/api/stripe', limiter);
+app.use(limiter);
 
 // Test route that will help confirm the server is working
 app.get('/test', (req, res) => {
@@ -356,30 +263,47 @@ app.get('/test-mix-audio', async (req, res) => {
 console.log('Registering routes...');
 app.use('/api/stories', storyRoutes);
 console.log('Story routes registered');
-app.use('/api/auth', authRoutes);
-console.log('Auth routes registered');
-app.use('/api/auth', googleAuthRoutes);
-console.log('Google auth routes registered');
-app.use('/api/stripe', stripeRoutes);
-console.log('Stripe routes registered');
+
+// Auth routes - Firebase Auth is handled in the frontend, no backend routes needed
+// app.use('/api/auth', authRoutes);
+// console.log('Auth routes registered');
+
+// Stripe and subscription routes - need to be updated for Firebase
+// app.use('/api/stripe', stripeRoutes);
+// console.log('Stripe routes registered');
+
 app.use('/api/audio', audioRoutes);
 console.log('Audio routes registered');
-app.use('/api/subscription', subscriptionRoutes);
-console.log('Subscription routes registered');
-app.use('/api/newsletter', newsletterRoutes);
-console.log('Newsletter routes registered');
-app.use('/api/ratings', ratingsRoutes);
-console.log('Ratings routes registered');
 
-// Health check route
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'ok',
+// Subscription routes - need to be updated for Firebase  
+// app.use('/api/subscription', subscriptionRoutes);
+// console.log('Subscription routes registered');
+
+// Newsletter routes - need to be updated for Firebase
+// app.use('/api/newsletter', newsletterRoutes);
+// console.log('Newsletter routes registered');
+
+// Ratings routes - should work with story service
+// app.use('/api/ratings', ratingsRoutes);
+// console.log('Ratings routes registered');
+
+// Health check route (simple, no auth required)
+app.get('/health', (req, res) => {
+  res.json({ 
+    status: 'ok', 
     timestamp: new Date().toISOString(),
-    services: {
-      database: 'ok',
-      openai: process.env.OPENAI_API_KEY ? 'ok' : 'not_configured'
-    }
+    service: 'AudioGretel Story Generator Backend',
+    version: '2.0.0-firebase'
+  });
+});
+
+// Additional health check route at /api/health for frontend compatibility
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    service: 'AudioGretel Story Generator Backend',
+    version: '2.0.0-firebase'
   });
 });
 

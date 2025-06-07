@@ -1,9 +1,10 @@
 // controllers/storyController.js
-const User = require('../models/User');
-const Story = require('../models/Story');
+const storyService = require('../services/storyService');
+// TEMPORARILY DISABLED - const audioService = require('../services/audioService');
+const { auth } = require('../middleware/auth');
+const openaiService = require('../utils/openaiService');
 const googleTtsService = require('../utils/googleTtsService');
 const { mixAudioWithBackground, getRandomMusicTrack, BACKGROUND_MUSIC_TRACKS } = require('../utils/audioMixer');
-const openaiService = require('../utils/openaiService');
 const { constructPrompt, extractTitle } = require('../utils/helpers');
 const { admin, db } = require('../config/firebase');
 const fs = require('fs').promises;
@@ -32,14 +33,24 @@ exports.generateStory = async (req, res, next) => {
   console.log('📝 Story generation request received:', req.body?.topic || 'No topic provided');
   
   try {
-    const { topic, email, language = 'es', storyLength, storyType, creativityLevel, ageGroup, childNames, englishLevel, spanishLevel } = req.body;
+    const { topic, language = 'es', storyLength, storyType, creativityLevel, ageGroup, childNames, englishLevel, spanishLevel } = req.body;
     
-    if (!topic || !email) {
-      return res.status(400).json({ error: 'Missing required parameters' });
+    if (!topic) {
+      return res.status(400).json({ error: 'Missing required parameter: topic' });
     }
 
+    // User comes from auth middleware with Firestore data
+    const user = req.user;
+    
+    if (!user) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    // Use the authenticated user's email
+    const email = user.email;
+
     // Check if user's email is verified (Firebase Auth)
-    if (req.user && !req.user.emailVerified) {
+    if (!user.emailVerified) {
       return res.status(403).json({ 
         error: 'Email not verified',
         message: 'Debes verificar tu email antes de crear cuentos. Revisa tu bandeja de entrada.',
@@ -216,16 +227,12 @@ Escribe la historia en español.`;
     console.log('🚀 ENVIANDO A OPENAI SERVICE...');
     console.log('🔥'.repeat(40) + '\n');
 
-    // Find or create user
-    let user = await User.findOne({ email });
-    if (!user) {
-      console.log('👤 Creating new user for email:', email);
-      user = await User.create({ 
-        email,
-        storiesGenerated: 0,
-        monthlyStoriesGenerated: 0
-      });
-    }
+    console.log('👤 User from auth middleware:', {
+      email: user.email,
+      storiesGenerated: user.storiesGenerated,
+      monthlyStoriesGenerated: user.monthlyStoriesGenerated,
+      subscriptionStatus: user.subscriptionStatus
+    });
 
     // Check story generation limits
     const canGenerate = await checkStoryGenerationLimit(user);
@@ -276,11 +283,11 @@ Escribe la historia en español.`;
 
     // Save to database
     console.log('💾 Saving story to database...');
-    const savedStory = await Story.create({
+    const savedStory = await storyService.create({
       title: story.title,
       content: contentWithTitle,  // Save content with title included
       email,  // Guardar el email del usuario
-      user: user._id,  // Associate with user
+      user: user.uid,  // Associate with Firebase user UID
       language: language,  // Save language
       ageGroup: ageGroup,  // Save age group
       englishLevel: englishLevel,  // Save English level
@@ -288,18 +295,25 @@ Escribe la historia en español.`;
       storyType: storyType,  // Save story type
       storyLength: storyLength,  // Save story length
       childNames: childNames,  // Save child names
-      createdAt: new Date()
     });
 
     // Update user story counts (skip for admins)
     if (!user.isAdmin) {
-      console.log('👤 Updating user story counts...');
-      await User.findByIdAndUpdate(user._id, {
-        $inc: { 
-          storiesGenerated: 1,
-          monthlyStoriesGenerated: 1
-        }
+      console.log('👤 Updating user story counts in Firestore...');
+      
+      // Update in Firestore
+      const userRef = db.collection('users').doc(user.uid);
+      await userRef.update({
+        storiesGenerated: user.storiesGenerated + 1,
+        monthlyStoriesGenerated: user.monthlyStoriesGenerated + 1,
+        updatedAt: new Date()
       });
+      
+      // Update local user object for immediate use
+      user.storiesGenerated += 1;
+      user.monthlyStoriesGenerated += 1;
+      
+      console.log('✅ User story counts updated in Firestore');
     } else {
       console.log('👑 Admin user - skipping story count increment');
     }
@@ -318,14 +332,22 @@ Escribe la historia en español.`;
 exports.generateAudio = async (req, res, next) => {
   try {
     const { storyId } = req.params;
-    const { email, voiceId, speechRate, musicTrack } = req.body;
+    const { voiceId, speechRate, musicTrack } = req.body;
 
-    if (!storyId || !email) {
-      return res.status(400).json({ error: 'Story ID and email are required' });
+    if (!storyId) {
+      return res.status(400).json({ error: 'Story ID is required' });
     }
 
+    // Check if user is authenticated
+    if (!req.user) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    // Use the authenticated user's email
+    const email = req.user.email;
+
     // Check if user's email is verified (Firebase Auth)
-    if (req.user && !req.user.emailVerified) {
+    if (!req.user.emailVerified) {
       return res.status(403).json({ 
         error: 'Email not verified',
         message: 'Debes verificar tu email antes de generar audio. Revisa tu bandeja de entrada.',
@@ -334,7 +356,7 @@ exports.generateAudio = async (req, res, next) => {
     }
 
     // Find the story
-    const story = await Story.findById(storyId);
+    const story = await storyService.findById(storyId);
     if (!story) {
       return res.status(404).json({ error: 'Story not found' });
     }
@@ -419,7 +441,9 @@ async function checkStoryGenerationLimit(user) {
   }
 
   // Check and reset monthly count if needed
-  user.checkAndResetMonthlyCount();
+  if (user.checkAndResetMonthlyCount) {
+    user.checkAndResetMonthlyCount();
+  }
 
   // Free users get 3 stories total
   if (user.subscriptionStatus !== 'active') {
@@ -437,7 +461,9 @@ async function getStoriesRemaining(user) {
   }
 
   // Check and reset monthly count if needed
-  user.checkAndResetMonthlyCount();
+  if (user.checkAndResetMonthlyCount) {
+    user.checkAndResetMonthlyCount();
+  }
 
   if (user.subscriptionStatus === 'free') {
     return Math.max(0, 3 - user.storiesGenerated);
@@ -456,7 +482,7 @@ async function getStoriesRemaining(user) {
 exports.getStoryById = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const story = await Story.findById(id).populate('user', 'email');
+    const story = await storyService.findById(id);
     
     if (!story) {
       return res.status(404).json({ error: 'Story not found' });
@@ -478,33 +504,23 @@ exports.getUserStories = async (req, res, next) => {
     const { userId } = req.params;
     const { page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
     
-    // Validate user authorization
-    if (req.user._id.toString() !== userId && !req.user.isAdmin) {
+    // Validate user authorization - use Firebase UID instead of MongoDB ObjectId
+    if (req.user.uid !== userId && !req.user.isAdmin) {
       return res.status(403).json({ error: 'Unauthorized to access these stories' });
     }
 
-    const skip = (page - 1) * limit;
-    const sort = {};
-    sort[sortBy] = sortOrder === 'desc' ? -1 : 1;
-
-    const stories = await Story.find({ user: userId })
-      .populate('user', 'email')
-      .sort(sort)
-      .skip(skip)
-      .limit(parseInt(limit));
-
-    const totalStories = await Story.countDocuments({ user: userId });
+    // Use Firestore service to find stories by user ID
+    const result = await storyService.findByEmail(req.user.email, {
+      page: parseInt(page),
+      limit: parseInt(limit),
+      sortBy,
+      sortOrder
+    });
 
     res.json({
       success: true,
-      stories,
-      pagination: {
-        current: parseInt(page),
-        total: Math.ceil(totalStories / limit),
-        totalStories,
-        hasNext: page * limit < totalStories,
-        hasPrev: page > 1
-      }
+      stories: result.stories,
+      pagination: result.pagination
     });
   } catch (error) {
     console.error('Error fetching user stories:', error);
@@ -533,31 +549,20 @@ exports.getMyStories = async (req, res, next) => {
     const userEmail = req.user.email;
     console.log('Searching stories for user email:', userEmail);
     
-    const skip = (page - 1) * limit;
-    const sort = {};
-    sort[sortBy] = sortOrder === 'desc' ? -1 : 1;
+    const result = await storyService.findByEmail(userEmail, {
+      page: parseInt(page),
+      limit: parseInt(limit),
+      sortBy,
+      sortOrder
+    });
 
-    const stories = await Story.find({ email: userEmail })
-      .populate('user', 'email')
-      .sort(sort)
-      .skip(skip)
-      .limit(parseInt(limit));
-
-    console.log('Found stories:', stories.length);
-
-    const totalStories = await Story.countDocuments({ email: userEmail });
-    console.log('Total stories for user:', totalStories);
+    console.log('Found stories:', result.stories.length);
+    console.log('Total stories for user:', result.totalStories);
 
     res.json({
       success: true,
-      stories,
-      pagination: {
-        current: parseInt(page),
-        total: Math.ceil(totalStories / limit),
-        totalStories,
-        hasNext: page * limit < totalStories,
-        hasPrev: page > 1
-      }
+      stories: result.stories,
+      pagination: result.pagination
     });
   } catch (error) {
     console.error('Error fetching user stories:', error);
@@ -581,7 +586,7 @@ exports.healthCheck = async (req, res) => {
   
   // Check database connection
   try {
-    const count = await User.countDocuments().limit(1);
+    const count = await storyService.countDocuments();
     health.services.database = 'ok';
   } catch (dbError) {
     console.error('❌ Database health check failed:', dbError);
@@ -708,7 +713,7 @@ exports.publishStory = async (req, res) => {
         }
 
         // Find the story
-        const story = await Story.findById(storyId);
+        const story = await storyService.findById(storyId);
         if (!story) {
             return res.status(404).json({ error: 'Story not found' });
         }
@@ -787,11 +792,15 @@ exports.publishStory = async (req, res) => {
         const textPath = await uploadToFirebaseStorage(textFilePath, `stories/${textFileName}`);
 
         // Update story with paths and published status
-        story.audioPath = audioPath;
-        story.textPath = textPath;
-        story.imagePath = imagePath;
-        story.published = true;
-        await story.save();
+        await storyService.update(story.id, {
+          audioPath: audioPath,
+          textPath: textPath,
+          imagePath: imagePath,
+          published: true
+        });
+
+        // Get the updated story
+        const updatedStory = await storyService.findById(story.id);
 
         // Create Firestore document for frontend gallery display
         try {
@@ -862,12 +871,12 @@ exports.publishStory = async (req, res) => {
         res.json({
             success: true,
             story: {
-                id: story._id,
-                title: story.title,
-                audioPath: story.audioPath,
-                textPath: story.textPath,
-                imagePath: story.imagePath,
-                published: story.published
+                id: updatedStory.id,
+                title: updatedStory.title,
+                audioPath: updatedStory.audioPath,
+                textPath: updatedStory.textPath,
+                imagePath: updatedStory.imagePath,
+                published: updatedStory.published
             }
         });
 
@@ -927,14 +936,22 @@ exports.rateStory = async (req, res) => {
     }
     
     // Find the story
-    const story = await Story.findById(storyId);
+    const story = await storyService.findById(storyId);
     if (!story) {
       return res.status(404).json({ error: 'Story not found' });
     }
     
-    // Add or update rating
-    story.addRating(req.user._id, req.user.email, rating);
-    await story.save();
+    // Add or update rating - use Firebase UID instead of MongoDB ObjectId
+    if (story.addRating) {
+      story.addRating(req.user.uid, req.user.email, rating);
+      await story.save();
+    } else {
+      // For now, just update the story with basic rating info
+      await storyService.update(storyId, {
+        averageRating: rating,
+        totalRatings: 1
+      });
+    }
     
     console.log('✅ Story rated successfully:', {
       storyId,
@@ -947,8 +964,8 @@ exports.rateStory = async (req, res) => {
       success: true,
       message: 'Story rated successfully',
       data: {
-        averageRating: story.averageRating,
-        totalRatings: story.totalRatings,
+        averageRating: story.averageRating || rating,
+        totalRatings: story.totalRatings || 1,
         userRating: rating
       }
     });
@@ -963,8 +980,7 @@ exports.getStoryRatings = async (req, res) => {
   try {
     const { storyId } = req.params;
     
-    const story = await Story.findById(storyId)
-      .select('averageRating totalRatings ratings');
+    const story = await storyService.findById(storyId);
     
     if (!story) {
       return res.status(404).json({ error: 'Story not found' });
@@ -972,7 +988,7 @@ exports.getStoryRatings = async (req, res) => {
     
     let userRating = null;
     if (req.user) {
-      userRating = story.getUserRating(req.user._id);
+      userRating = story.getUserRating ? story.getUserRating(req.user.uid) : null;
     }
     
     res.json({
@@ -993,27 +1009,16 @@ exports.getStoryRatings = async (req, res) => {
 exports.getTopRatedStories = async (req, res) => {
   try {
     const { page = 1, limit = 10 } = req.query;
-    const skip = (page - 1) * limit;
     
-    const stories = await Story.find({ published: true })
-      .populate('user', 'email')
-      .sort({ averageRating: -1, totalRatings: -1, createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit))
-      .select('-ratings'); // Don't send individual ratings for privacy
-    
-    const totalStories = await Story.countDocuments({ published: true });
+    const result = await storyService.findPublished({
+      page: parseInt(page),
+      limit: parseInt(limit)
+    });
     
     res.json({
       success: true,
-      stories,
-      pagination: {
-        current: parseInt(page),
-        total: Math.ceil(totalStories / limit),
-        totalStories,
-        hasNext: page * limit < totalStories,
-        hasPrev: page > 1
-      }
+      stories: result.stories,
+      pagination: result.pagination
     });
   } catch (error) {
     console.error('Error fetching top rated stories:', error);

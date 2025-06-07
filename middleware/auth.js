@@ -1,4 +1,5 @@
 const admin = require('firebase-admin');
+const { db } = require('../config/firebase'); // Add Firestore import
 
 // Helper function to check if Firebase is properly initialized
 const checkFirebaseInit = () => {
@@ -18,6 +19,41 @@ const checkFirebaseInit = () => {
   } catch (error) {
     console.error('❌ Firebase initialization check failed:', error.message);
     return false;
+  }
+};
+
+// Helper function to get or create user data in Firestore
+const getOrCreateUserData = async (firebaseUser) => {
+  try {
+    const userRef = db.collection('users').doc(firebaseUser.uid);
+    const userDoc = await userRef.get();
+    
+    if (userDoc.exists) {
+      console.log('📁 User found in Firestore:', firebaseUser.email);
+      return { id: userDoc.id, ...userDoc.data() };
+    } else {
+      console.log('👤 Creating new user in Firestore:', firebaseUser.email);
+      const newUserData = {
+        email: firebaseUser.email,
+        emailVerified: firebaseUser.email_verified || false,
+        firebase_uid: firebaseUser.uid,
+        storiesGenerated: 0,
+        monthlyStoriesGenerated: 0,
+        subscriptionStatus: 'free',
+        isPremium: false,
+        isAdmin: false,
+        lastMonthReset: new Date(),
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+      
+      await userRef.set(newUserData);
+      console.log('✅ New user created in Firestore');
+      return { id: firebaseUser.uid, ...newUserData };
+    }
+  } catch (error) {
+    console.error('❌ Error getting/creating user data:', error);
+    throw error;
   }
 };
 
@@ -68,14 +104,50 @@ const auth = async (req, res, next) => {
     
     console.log('Firebase token verified successfully, user ID:', decodedToken.uid);
     console.log('User email from token:', decodedToken.email);
+    console.log('Email verified status from Firebase:', decodedToken.email_verified);
 
-    // Create a user object based on Firebase token data
+    // Get or create user data from Firestore
+    const userData = await getOrCreateUserData(decodedToken);
+
+    // Create enhanced user object with Firestore data
     const user = {
+      _id: userData.id,
       uid: decodedToken.uid,
       email: decodedToken.email,
-      email_verified: decodedToken.email_verified || false,
-      firebase_uid: decodedToken.uid
+      emailVerified: decodedToken.email_verified || false,
+      firebase_uid: decodedToken.uid,
+      storiesGenerated: userData.storiesGenerated || 0,
+      monthlyStoriesGenerated: userData.monthlyStoriesGenerated || 0,
+      subscriptionStatus: userData.subscriptionStatus || 'free',
+      isPremium: userData.isPremium || false,
+      isAdmin: userData.isAdmin || false,
+      lastMonthReset: userData.lastMonthReset,
+      // Add helper methods
+      checkAndResetMonthlyCount: function() {
+        const now = new Date();
+        const lastReset = new Date(this.lastMonthReset);
+        
+        // Reset if it's been a month since last reset
+        if (now.getMonth() !== lastReset.getMonth() || now.getFullYear() !== lastReset.getFullYear()) {
+          this.monthlyStoriesGenerated = 0;
+          this.lastMonthReset = now;
+          
+          // Update in Firestore
+          db.collection('users').doc(this.uid).update({
+            monthlyStoriesGenerated: 0,
+            lastMonthReset: now
+          }).catch(err => console.error('Error updating monthly reset:', err));
+        }
+      }
     };
+
+    console.log('User object created with Firestore data:', {
+      email: user.email,
+      emailVerified: user.emailVerified,
+      storiesGenerated: user.storiesGenerated,
+      monthlyStoriesGenerated: user.monthlyStoriesGenerated,
+      subscriptionStatus: user.subscriptionStatus
+    });
 
     req.user = user;
     req.firebaseUser = decodedToken;
@@ -169,7 +241,7 @@ const optionalAuth = async (req, res, next) => {
     const user = {
       uid: decodedToken.uid,
       email: decodedToken.email,
-      email_verified: decodedToken.email_verified || false,
+      emailVerified: decodedToken.email_verified || false,
       firebase_uid: decodedToken.uid
     };
     

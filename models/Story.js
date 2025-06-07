@@ -10,8 +10,7 @@ const storySchema = new mongoose.Schema({
     required: true
   },
   user: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
+    type: String,
     required: true
   },
   email: {
@@ -74,8 +73,7 @@ const storySchema = new mongoose.Schema({
   // Rating system fields
   ratings: [{
     user: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
+      type: String,
       required: true
     },
     email: {
@@ -123,7 +121,7 @@ storySchema.methods.incrementAudioGenerations = function() {
 // Method to add or update rating
 storySchema.methods.addRating = function(userId, email, rating) {
   // Check if user already rated this story
-  const existingRatingIndex = this.ratings.findIndex(r => r.user.toString() === userId.toString());
+  const existingRatingIndex = this.ratings.findIndex(r => r.user === userId);
   
   if (existingRatingIndex !== -1) {
     // Update existing rating
@@ -160,7 +158,7 @@ storySchema.methods.calculateAverageRating = function() {
 
 // Method to get user's rating for this story
 storySchema.methods.getUserRating = function(userId) {
-  const userRating = this.ratings.find(r => r.user.toString() === userId.toString());
+  const userRating = this.ratings.find(r => r.user === userId);
   return userRating ? userRating.rating : null;
 };
 

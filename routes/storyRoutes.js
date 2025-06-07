@@ -5,9 +5,9 @@ const { auth } = require('../middleware/auth');
 const storyController = require('../controllers/storyController');
 
 // Generate story
-router.post('/generate', (req, res, next) => {
+router.post('/generate', auth, (req, res, next) => {
   console.log('📝 Story generation route hit:', req.body?.topic || 'No topic provided');
-  console.log('👤 User email:', req.body?.email || 'No email provided');
+  console.log('👤 User from auth middleware:', req.user?.email || 'No user email');
   console.log('🌍 Language:', req.body?.language || 'No language provided');
   
   // Verificar que la solicitud viene de un origen permitido
@@ -31,25 +31,15 @@ router.post('/generate', (req, res, next) => {
     return res.status(403).json({ error: 'Forbidden: Invalid origin' });
   }
   
-  // Verificar que el usuario está autenticado
-  if (!req.body?.email) {
-    console.log('❌ No email provided in request');
-    return res.status(401).json({ error: 'Unauthorized: No email provided' });
-  }
-  
-  // Verificar que hay un token de autenticación
-  const authHeader = req.headers.authorization;
-  if (!authHeader) {
-    console.log('❌ No authorization header in request');
-    return res.status(401).json({ error: 'Unauthorized: No token provided' });
-  }
+  // El usuario ya está verificado por el middleware auth
+  // req.user ya está disponible con los datos de Firebase/Firestore
   
   // Continuar con la generación de la historia
   storyController.generateStory(req, res, next);
 });
 
 // Generate audio for a story
-router.post('/:storyId/audio', (req, res, next) => {
+router.post('/:storyId/audio', auth, (req, res, next) => {
   storyController.generateAudio(req, res, next);
 });
 
@@ -64,22 +54,42 @@ router.get('/remaining', auth, async (req, res) => {
   try {
     const user = req.user;
     
+    console.log('📊 [REMAINING] User data from auth middleware:', {
+      email: user.email,
+      storiesGenerated: user.storiesGenerated,
+      monthlyStoriesGenerated: user.monthlyStoriesGenerated,
+      subscriptionStatus: user.subscriptionStatus
+    });
+    
     // Check and reset monthly count if needed
-    user.checkAndResetMonthlyCount();
+    if (user.checkAndResetMonthlyCount) {
+      user.checkAndResetMonthlyCount();
+    }
     
     // Calculate remaining stories
     let storiesRemaining = 0;
+    let totalAllowed = 3;
+    let used = user.storiesGenerated || 0;
     
     if (user.subscriptionStatus === 'active') {
-      storiesRemaining = Math.max(0, 30 - user.monthlyStoriesGenerated);
+      totalAllowed = 30;
+      used = user.monthlyStoriesGenerated || 0;
+      storiesRemaining = Math.max(0, 30 - used);
     } else {
-      storiesRemaining = Math.max(0, 3 - user.storiesGenerated);
+      storiesRemaining = Math.max(0, 3 - used);
     }
+    
+    console.log('📊 [REMAINING] Calculated values:', {
+      storiesRemaining,
+      totalAllowed,
+      used,
+      subscriptionStatus: user.subscriptionStatus
+    });
     
     res.json({
       storiesRemaining,
-      totalAllowed: user.subscriptionStatus === 'active' ? 30 : 3,
-      used: user.subscriptionStatus === 'active' ? user.monthlyStoriesGenerated : user.storiesGenerated
+      totalAllowed,
+      used
     });
   } catch (error) {
     console.error('Error getting remaining stories:', error);
@@ -88,15 +98,16 @@ router.get('/remaining', auth, async (req, res) => {
 });
 
 // Get current user's stories (authenticated route)
-router.get('/my-stories', (req, res, next) => {
+router.get('/my-stories', auth, (req, res, next) => {
   console.log('🔍 [MY-STORIES] Route hit - Debug info:');
   console.log('Authorization header:', req.headers.authorization ? req.headers.authorization.substring(0, 20) + '...' : 'None');
   console.log('Request method:', req.method);
   console.log('Request path:', req.path);
+  console.log('User from auth middleware:', req.user ? req.user.email : 'No user');
   
-  // Call auth middleware
-  auth(req, res, next);
-}, storyController.getMyStories);
+  // Call the controller
+  storyController.getMyStories(req, res, next);
+});
 
 // Get stories for a specific user (admin or owner only)
 router.get('/user/:userId', auth, storyController.getUserStories);
