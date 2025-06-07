@@ -60,6 +60,15 @@ const ratingsRoutes = require('./routes/ratingsRoutes');
 // Create Express app
 const app = express();
 
+// Configurar trust proxy para Render
+if (process.env.NODE_ENV === 'production') {
+  console.log('🌐 Production mode: configuring trust proxy for Render');
+  app.set('trust proxy', true);
+} else {
+  console.log('🔧 Development mode: trust proxy disabled');
+  app.set('trust proxy', false);
+}
+
 // Middleware para logging de todas las solicitudes
 app.use((req, res, next) => {
   console.log('🔍 Incoming request:', {
@@ -203,7 +212,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Rate limiting
+// Rate limiting - mejorado para Render
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
   max: process.env.NODE_ENV === 'development' ? 1000 : 100, // Más permisivo en desarrollo
@@ -212,7 +221,26 @@ const limiter = rateLimit({
     retryAfter: '15 minutes'
   },
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
+  // Configuración específica para Render
+  skip: (req) => {
+    // Skip rate limiting para health checks
+    if (req.path === '/health' || req.path === '/test') {
+      return true;
+    }
+    return false;
+  },
+  keyGenerator: (req) => {
+    // En producción, usar IP real desde proxy
+    if (process.env.NODE_ENV === 'production') {
+      return req.ip || req.connection.remoteAddress || 'unknown';
+    }
+    // En desarrollo, usar IP directa
+    return req.ip || req.connection.remoteAddress || 'unknown';
+  },
+  onLimitReached: (req, res, options) => {
+    console.log(`🚨 Rate limit reached for IP: ${req.ip}, Path: ${req.path}`);
+  }
 });
 
 // Aplicar rate limiter solo a rutas específicas
