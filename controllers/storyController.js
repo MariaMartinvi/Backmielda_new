@@ -670,6 +670,10 @@ async function generateStoryImage(title) {
 
 // Function to publish story
 exports.publishStory = async (req, res) => {
+    console.log('🎯 [PUBLISH] Controller started - received request');
+    console.log('🎯 [PUBLISH] User from middleware:', req.user ? req.user.email : 'No user');
+    console.log('🎯 [PUBLISH] Story ID:', req.params.storyId);
+    
     try {
         // Check if Firebase Storage is available
         try {

@@ -81,6 +81,7 @@ const auth = async (req, res, next) => {
     req.firebaseUser = decodedToken;
     req.token = token;
     console.log('Authentication successful for user:', user.email);
+    console.log('🚀 Auth middleware completed successfully, calling next()');
     next();
   } catch (error) {
     console.error('Auth middleware error:', {
