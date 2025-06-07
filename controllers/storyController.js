@@ -703,10 +703,22 @@ exports.publishStory = async (req, res) => {
             return res.status(404).json({ error: 'Story not found' });
         }
 
+        // Debug logging for authorization
+        console.log('🔍 [PUBLISH] Authorization check:');
+        console.log('Story email:', story.email);
+        console.log('Request email:', email);
+        console.log('Story email type:', typeof story.email);
+        console.log('Request email type:', typeof email);
+        console.log('Emails match:', story.email === email);
+        console.log('User from auth:', req.user ? req.user.email : 'No user');
+
         // Verify ownership
         if (story.email !== email) {
+            console.log('❌ [PUBLISH] Email mismatch - Authorization failed');
             return res.status(403).json({ error: 'Unauthorized to publish this story' });
         }
+
+        console.log('✅ [PUBLISH] Authorization successful - proceeding with publish');
 
         // Create temp directory if it doesn't exist
         const tempDir = path.join(__dirname, '../temp');
