@@ -124,10 +124,13 @@ const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:5001',
   'https://www.audiogretel.com',
-  'https://audiogretel.com'
+  'https://audiogretel.com',
+  'https://audiogretel.netlify.app',
+  'https://audiogretel.vercel.app'
 ];
 
 console.log('Allowed origins:', allowedOrigins);
+console.log('NODE_ENV:', process.env.NODE_ENV);
 
 app.use(cors({
   origin: function(origin, callback) {
@@ -141,22 +144,64 @@ app.use(cors({
       console.log('✅ Allowed origin:', origin);
       callback(null, true);
     } else {
-      console.log('❌ Blocked origin:', origin);
-      callback(new Error('Not allowed by CORS'));
+      console.log('❌ Blocked origin:', origin, 'Allowed:', allowedOrigins);
+      // En desarrollo, permitir cualquier origen localhost
+      if (process.env.NODE_ENV === 'development' && origin.includes('localhost')) {
+        console.log('🔧 Development mode: allowing localhost origin');
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
     }
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization', 
+    'X-Requested-With', 
+    'Accept', 
+    'Origin',
+    'Cache-Control',
+    'X-Auth-Token'
+  ],
+  exposedHeaders: ['Content-Range', 'X-Content-Range'],
+  optionsSuccessStatus: 200 // Para compatibilidad con navegadores legacy
 }));
 
-// Security middleware
+// Security middleware - optimizado para Firebase Auth
 app.use(helmet({
-  contentSecurityPolicy: false,
+  contentSecurityPolicy: process.env.NODE_ENV === 'production' ? {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      scriptSrc: ["'self'", "https://apis.google.com", "https://js.stripe.com"],
+      connectSrc: ["'self'", "https://api.stripe.com", "https://identitytoolkit.googleapis.com"],
+      frameSrc: ["https://js.stripe.com", "https://hooks.stripe.com"],
+      imgSrc: ["'self'", "data:", "https:"]
+    }
+  } : false,
   crossOriginResourcePolicy: { policy: "cross-origin" },
-  crossOriginOpenerPolicy: { policy: "unsafe-none" },
-  frameguard: false // Desactiva X-Frame-Options para permitir WebView
+  crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
+  crossOriginEmbedderPolicy: false,
+  frameguard: { action: 'deny' }
 }));
+
+// Middleware adicional para manejar COOP específicamente para Firebase Auth
+app.use((req, res, next) => {
+  // Permitir popups para autenticación de Firebase
+  res.header('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+  res.header('Cross-Origin-Embedder-Policy', 'unsafe-none');
+  
+  // Headers adicionales para Firebase
+  if (req.path.includes('/auth') || req.path.includes('/api/auth')) {
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Private-Network', 'true');
+  }
+  
+  next();
+});
 
 // Rate limiting
 const limiter = rateLimit({
