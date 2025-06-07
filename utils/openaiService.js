@@ -371,3 +371,33 @@ exports.checkOpenAIStatus = async () => {
     return statusResult;
   }
 };
+
+// Generate image with DALL-E
+exports.generateImage = async (prompt) => {
+  try {
+    console.log('🎨 Generating image with DALL-E for prompt:', prompt);
+    
+    if (!process.env.OPENAI_API_KEY) {
+      throw new Error('OpenAI API key is not configured');
+    }
+
+    const openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY
+    });
+
+    const response = await openai.images.generate({
+      model: "dall-e-3",
+      prompt: prompt,
+      n: 1,
+      size: "1024x1024", // Smaller size for web optimization
+      quality: "standard", // Standard quality instead of HD
+      style: "vivid"
+    });
+
+    console.log('✅ Image generated successfully');
+    return response;
+  } catch (error) {
+    console.error('❌ Error generating image:', error);
+    throw error;
+  }
+};

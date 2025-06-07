@@ -1,11 +1,10 @@
-const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+const admin = require('firebase-admin');
 
 const auth = async (req, res, next) => {
   try {
     console.log('Auth middleware - Checking authorization header');
     const authHeader = req.header('Authorization');
-    console.log('Authorization header:', authHeader);
+    console.log('Authorization header:', authHeader ? authHeader.substring(0, 20) + '...' : 'None');
 
     if (!authHeader) {
       console.log('No authorization header found');
@@ -26,31 +25,21 @@ const auth = async (req, res, next) => {
       });
     }
 
-    console.log('Verifying token with JWT_SECRET');
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    console.log('Token decoded successfully, user ID:', decoded.id);
+    console.log('Verifying Firebase ID token');
+    const decodedToken = await admin.auth().verifyIdToken(token);
+    console.log('Firebase token verified successfully, user ID:', decodedToken.uid);
+    console.log('User email from token:', decodedToken.email);
 
-    const user = await User.findById(decoded.id);
-    console.log('User found:', user ? user.email : 'No user found');
-
-    if (!user) {
-      console.log('User not found in database');
-      return res.status(401).json({ 
-        error: 'Authentication failed',
-        message: 'User not found' 
-      });
-    }
-
-    // Check if user's email is verified
-    if (!user.isVerified) {
-      console.log('User email not verified:', user.email);
-      return res.status(401).json({ 
-        error: 'Email not verified',
-        message: 'Please verify your email address to access this resource' 
-      });
-    }
+    // Create a user object based on Firebase token data
+    const user = {
+      uid: decodedToken.uid,
+      email: decodedToken.email,
+      email_verified: decodedToken.email_verified || false,
+      firebase_uid: decodedToken.uid
+    };
 
     req.user = user;
+    req.firebaseUser = decodedToken;
     req.token = token;
     console.log('Authentication successful for user:', user.email);
     next();
@@ -58,19 +47,19 @@ const auth = async (req, res, next) => {
     console.error('Auth middleware error:', {
       name: error.name,
       message: error.message,
-      stack: error.stack
+      code: error.code
     });
 
-    if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json({ 
-        error: 'Invalid token',
-        message: 'The provided token is invalid' 
-      });
-    }
-    if (error.name === 'TokenExpiredError') {
+    if (error.code === 'auth/id-token-expired') {
       return res.status(401).json({ 
         error: 'Token expired',
         message: 'Your session has expired. Please log in again' 
+      });
+    }
+    if (error.code === 'auth/invalid-id-token' || error.code === 'auth/argument-error') {
+      return res.status(401).json({ 
+        error: 'Invalid token',
+        message: 'The provided token is invalid' 
       });
     }
     res.status(401).json({ 
@@ -87,6 +76,7 @@ const optionalAuth = async (req, res, next) => {
     
     if (!authHeader) {
       req.user = null;
+      req.firebaseUser = null;
       return next();
     }
 
@@ -94,23 +84,28 @@ const optionalAuth = async (req, res, next) => {
     
     if (!token) {
       req.user = null;
+      req.firebaseUser = null;
       return next();
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(decoded.id);
+    const decodedToken = await admin.auth().verifyIdToken(token);
     
-    if (user && user.isVerified) {
-      req.user = user;
-      req.token = token;
-    } else {
-      req.user = null;
-    }
+    const user = {
+      uid: decodedToken.uid,
+      email: decodedToken.email,
+      email_verified: decodedToken.email_verified || false,
+      firebase_uid: decodedToken.uid
+    };
+    
+    req.user = user;
+    req.firebaseUser = decodedToken;
+    req.token = token;
     
     next();
   } catch (error) {
     // For optional auth, we don't fail on invalid tokens
     req.user = null;
+    req.firebaseUser = null;
     next();
   }
 };

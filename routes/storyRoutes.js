@@ -53,10 +53,11 @@ router.post('/:storyId/audio', (req, res, next) => {
   storyController.generateAudio(req, res, next);
 });
 
+// Publish story
+router.post('/:storyId/publish', storyController.publishStory);
+
 // OpenAI API Health check
-router.get('/health/openai', (req, res) => {
-  storyController.healthCheck(req, res);
-});
+router.get('/health', storyController.healthCheck);
 
 // Get remaining stories count for current user
 router.get('/remaining', auth, async (req, res) => {
@@ -86,9 +87,30 @@ router.get('/remaining', auth, async (req, res) => {
   }
 });
 
+// Get current user's stories (authenticated route)
+router.get('/my-stories', (req, res, next) => {
+  console.log('🔍 [MY-STORIES] Route hit - Debug info:');
+  console.log('Authorization header:', req.headers.authorization ? req.headers.authorization.substring(0, 20) + '...' : 'None');
+  console.log('Request method:', req.method);
+  console.log('Request path:', req.path);
+  
+  // Call auth middleware
+  auth(req, res, next);
+}, storyController.getMyStories);
+
+// Get stories for a specific user (admin or owner only)
+router.get('/user/:userId', auth, storyController.getUserStories);
+
+// Get top rated stories
+router.get('/top-rated', storyController.getTopRatedStories);
+
+// Rate a story (authenticated route)
+router.post('/:storyId/rate', auth, storyController.rateStory);
+
+// Get story ratings
+router.get('/:storyId/ratings', storyController.getStoryRatings);
+
 // Get story by ID
-router.get('/:id', (req, res, next) => {
-  storyController.getStoryById(req, res, next);
-});
+router.get('/:id', storyController.getStoryById);
 
 module.exports = router; 

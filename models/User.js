@@ -10,6 +10,12 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: false
   },
+  firebaseUid: {
+    type: String,
+    required: false,
+    unique: true,
+    sparse: true
+  },
   googleId: {
     type: String,
     required: false,

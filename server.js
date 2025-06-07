@@ -36,6 +36,10 @@ console.log('OpenAI API Key: Configurada (primeros caracteres: ' + process.env.O
 console.log('OpenAI API Key: No configurada');
 }
 
+// Initialize Firebase Admin
+console.log('🔥 Initializing Firebase Admin...');
+require('./config/firebase');
+
 // Only after environment variables are loaded, require other modules
 const express = require('express');
 const cors = require('cors');
@@ -51,6 +55,7 @@ const stripeRoutes = require('./routes/stripeRoutes');
 const audioRoutes = require('./routes/audioRoutes');
 const subscriptionRoutes = require('./routes/subscriptionRoutes');
 const newsletterRoutes = require('./routes/newsletterRoutes');
+const ratingsRoutes = require('./routes/ratingsRoutes');
 
 // Create Express app
 const app = express();
@@ -273,6 +278,8 @@ app.use('/api/subscription', subscriptionRoutes);
 console.log('Subscription routes registered');
 app.use('/api/newsletter', newsletterRoutes);
 console.log('Newsletter routes registered');
+app.use('/api/ratings', ratingsRoutes);
+console.log('Ratings routes registered');
 
 // Health check route
 app.get('/api/health', (req, res) => {
