@@ -59,54 +59,63 @@ const getOrCreateUserData = async (firebaseUser) => {
 
 const auth = async (req, res, next) => {
   try {
-    console.log('Auth middleware - Checking authorization header');
+    console.log('🔐 Auth middleware - Processing request for:', req.method, req.url);
+    console.log('🔐 User-Agent:', req.headers['user-agent']?.substring(0, 50) + '...');
+    console.log('🔐 Origin:', req.headers.origin);
     
     // Check if Firebase is properly initialized
     if (!checkFirebaseInit()) {
       console.error('❌ Firebase not properly initialized, cannot verify tokens');
       return res.status(500).json({ 
         error: 'Authentication service unavailable',
-        message: 'Firebase authentication service is not properly configured' 
+        message: 'Firebase authentication service is not properly configured',
+        details: 'Server configuration issue - please contact support'
       });
     }
     
     const authHeader = req.header('Authorization');
-    console.log('Authorization header:', authHeader ? authHeader.substring(0, 20) + '...' : 'None');
+    console.log('🔐 Authorization header:', authHeader ? `Bearer ${authHeader.substring(7, 20)}...` : 'None');
 
     if (!authHeader) {
-      console.log('No authorization header found');
+      console.log('❌ No authorization header found');
       return res.status(401).json({ 
         error: 'Authentication required',
-        message: 'No authorization header provided' 
+        message: 'No authorization header provided',
+        code: 'NO_AUTH_HEADER'
       });
     }
 
     const token = authHeader.replace('Bearer ', '');
-    console.log('Token extracted:', token.substring(0, 10) + '...');
+    console.log('🔐 Token extracted, length:', token.length);
 
-    if (!token) {
-      console.log('No token found in authorization header');
+    if (!token || token.length < 100) { // Firebase tokens are typically much longer
+      console.log('❌ Invalid token format or length');
       return res.status(401).json({ 
         error: 'Authentication required',
-        message: 'No token provided' 
+        message: 'Invalid token format',
+        code: 'INVALID_TOKEN_FORMAT'
       });
     }
 
-    console.log('Verifying Firebase ID token');
+    console.log('🔐 Verifying Firebase ID token...');
     
     // Add timeout to prevent hanging requests
-    const verifyPromise = admin.auth().verifyIdToken(token);
+    const verifyPromise = admin.auth().verifyIdToken(token, true); // Check if token is revoked
     const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Token verification timeout')), 10000);
+      setTimeout(() => reject(new Error('Token verification timeout')), 15000); // Increased timeout
     });
     
     const decodedToken = await Promise.race([verifyPromise, timeoutPromise]);
     
-    console.log('Firebase token verified successfully, user ID:', decodedToken.uid);
-    console.log('User email from token:', decodedToken.email);
-    console.log('Email verified status from Firebase:', decodedToken.email_verified);
+    console.log('✅ Firebase token verified successfully');
+    console.log('🔐 User ID:', decodedToken.uid);
+    console.log('🔐 User email:', decodedToken.email);
+    console.log('🔐 Email verified:', decodedToken.email_verified);
+    console.log('🔐 Token issued at:', new Date(decodedToken.iat * 1000).toISOString());
+    console.log('🔐 Token expires at:', new Date(decodedToken.exp * 1000).toISOString());
 
     // Get or create user data from Firestore
+    console.log('🔄 Fetching user data from Firestore...');
     const userData = await getOrCreateUserData(decodedToken);
 
     // Create enhanced user object with Firestore data
@@ -141,7 +150,7 @@ const auth = async (req, res, next) => {
       }
     };
 
-    console.log('User object created with Firestore data:', {
+    console.log('✅ User object created with Firestore data:', {
       email: user.email,
       emailVerified: user.emailVerified,
       storiesGenerated: user.storiesGenerated,
@@ -152,14 +161,15 @@ const auth = async (req, res, next) => {
     req.user = user;
     req.firebaseUser = decodedToken;
     req.token = token;
-    console.log('Authentication successful for user:', user.email);
+    console.log('✅ Authentication successful for user:', user.email);
     console.log('🚀 Auth middleware completed successfully, calling next()');
     next();
   } catch (error) {
-    console.error('Auth middleware error:', {
+    console.error('❌ Auth middleware error:', {
       name: error.name,
       message: error.message,
-      code: error.code
+      code: error.code,
+      stack: error.stack
     });
 
     // Handle specific Firebase initialization errors
@@ -168,7 +178,8 @@ const auth = async (req, res, next) => {
       console.error('❌ Firebase Project ID not configured properly');
       return res.status(500).json({ 
         error: 'Authentication service configuration error',
-        message: 'Firebase project configuration is missing. Please contact support.' 
+        message: 'Firebase project configuration is missing. Please contact support.',
+        code: 'FIREBASE_CONFIG_ERROR'
       });
     }
 
@@ -176,35 +187,64 @@ const auth = async (req, res, next) => {
       console.error('❌ Token verification timed out');
       return res.status(408).json({ 
         error: 'Authentication timeout',
-        message: 'Token verification took too long. Please try again.' 
+        message: 'Token verification took too long. Please try again.',
+        code: 'TOKEN_VERIFICATION_TIMEOUT'
       });
     }
 
     if (error.code === 'auth/id-token-expired') {
+      console.error('❌ Token expired');
       return res.status(401).json({ 
         error: 'Token expired',
-        message: 'Your session has expired. Please log in again' 
+        message: 'Your session has expired. Please log in again',
+        code: 'TOKEN_EXPIRED'
       });
     }
     
     if (error.code === 'auth/invalid-id-token' || error.code === 'auth/argument-error') {
+      console.error('❌ Invalid token provided');
       return res.status(401).json({ 
         error: 'Invalid token',
-        message: 'The provided token is invalid' 
+        message: 'The provided token is invalid. Please log in again.',
+        code: 'INVALID_TOKEN'
+      });
+    }
+    
+    if (error.code === 'auth/id-token-revoked') {
+      console.error('❌ Token has been revoked');
+      return res.status(401).json({ 
+        error: 'Token revoked',
+        message: 'Your session has been revoked. Please log in again.',
+        code: 'TOKEN_REVOKED'
       });
     }
     
     // Handle network or Firebase service errors
     if (error.code === 'auth/network-request-failed') {
+      console.error('❌ Network request failed');
       return res.status(503).json({ 
         error: 'Authentication service unavailable',
-        message: 'Unable to verify authentication. Please try again.' 
+        message: 'Unable to verify authentication due to network issues. Please try again.',
+        code: 'NETWORK_ERROR'
       });
     }
     
+    // Handle Firestore errors
+    if (error.message.includes('Firestore') || error.code === 'permission-denied') {
+      console.error('❌ Firestore access error');
+      return res.status(500).json({ 
+        error: 'User data access failed',
+        message: 'Unable to access user data. Please try again.',
+        code: 'FIRESTORE_ERROR'
+      });
+    }
+    
+    // Generic authentication failure
+    console.error('❌ Generic authentication failure');
     res.status(401).json({ 
       error: 'Authentication failed',
-      message: 'Authentication verification failed' 
+      message: 'Authentication verification failed. Please log in again.',
+      code: 'AUTH_FAILED'
     });
   }
 };
