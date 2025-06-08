@@ -27,19 +27,61 @@ if (!admin.apps.length) {
       try {
         console.log('🔧 Attempting initialization with environment variables...');
         
-        // Parse the private key (it might be escaped)
+        // Parse the private key with multiple fallback methods
         let privateKey = requiredEnvVars.privateKey;
         
-        // Handle different escaping scenarios
+        console.log('🔍 Original private key length:', privateKey.length);
+        console.log('🔍 Private key starts with:', privateKey.substring(0, 50));
+        
+        // Method 1: Handle standard \n escaping
         if (privateKey.includes('\\n')) {
+          console.log('🔧 Converting \\n to actual newlines...');
           privateKey = privateKey.replace(/\\n/g, '\n');
         }
         
-        // Ensure the key starts and ends correctly
-        if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
-          console.error('❌ Private key format appears incorrect');
-          throw new Error('Invalid private key format');
+        // Method 2: Handle double escaping that can occur in some environments
+        if (privateKey.includes('\\\\n')) {
+          console.log('🔧 Converting \\\\n to actual newlines...');
+          privateKey = privateKey.replace(/\\\\n/g, '\n');
         }
+        
+        // Method 3: Handle base64 encoded private keys (some environments encode them)
+        if (!privateKey.includes('-----BEGIN PRIVATE KEY-----') && privateKey.length > 1000) {
+          try {
+            console.log('🔧 Attempting base64 decode...');
+            privateKey = Buffer.from(privateKey, 'base64').toString('utf8');
+          } catch (base64Error) {
+            console.log('ℹ️ Not base64 encoded');
+          }
+        }
+        
+        // Method 4: Handle JSON string encoding (sometimes the entire key is JSON stringified)
+        if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
+          try {
+            console.log('🔧 Attempting JSON parse...');
+            privateKey = JSON.parse(privateKey);
+          } catch (jsonError) {
+            console.log('ℹ️ Not JSON stringified');
+          }
+        }
+        
+        // Method 5: Clean up any remaining whitespace issues
+        privateKey = privateKey.trim();
+        
+        // Validate the final key format
+        if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
+          console.error('❌ Private key format appears incorrect after all parsing attempts');
+          console.error('Key preview (first 100 chars):', privateKey.substring(0, 100));
+          throw new Error('Invalid private key format - missing BEGIN PRIVATE KEY header');
+        }
+        
+        if (!privateKey.includes('-----END PRIVATE KEY-----')) {
+          console.error('❌ Private key format appears incorrect - missing END header');
+          throw new Error('Invalid private key format - missing END PRIVATE KEY footer');
+        }
+        
+        console.log('✅ Private key format validated');
+        console.log('🔍 Final private key length:', privateKey.length);
         
         const serviceAccountConfig = {
           projectId: requiredEnvVars.projectId,
@@ -72,6 +114,13 @@ if (!admin.apps.length) {
           code: error.code,
           errorInfo: error.errorInfo
         });
+        
+        // Additional debugging for private key issues
+        if (error.message.includes('DECODER') || error.message.includes('unsupported')) {
+          console.error('🔍 DECODER ERROR - This suggests the private key format is corrupted');
+          console.error('Check that FIREBASE_PRIVATE_KEY in Render is set correctly');
+          console.error('Private key should include the full -----BEGIN PRIVATE KEY----- header and footer');
+        }
       }
     }
 

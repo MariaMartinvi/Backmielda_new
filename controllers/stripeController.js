@@ -1,5 +1,5 @@
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
-const User = require('../models/User');
+const { admin, db } = require('../config/firebase');
 
 // Crear sesión de checkout
 const createCheckoutSession = async (req, res) => {
@@ -15,16 +15,31 @@ const createCheckoutSession = async (req, res) => {
       return res.status(400).json({ error: 'Email es requerido' });
     }
     
-    // Buscar o crear usuario
-    let user = await User.findOne({ email });
+    // Buscar usuario en Firestore
+    const usersRef = db.collection('users');
+    const userQuery = await usersRef.where('email', '==', email).get();
     
-    if (!user) {
+    let user;
+    let userId;
+    
+    if (userQuery.empty) {
       console.log('🔍 DEBUG CHECKOUT: Usuario no encontrado, creando nuevo');
-      user = await User.create({ 
+      // Crear nuevo usuario en Firestore
+      const newUserData = {
         email, 
         subscriptionStatus: 'free',
-        storiesRemaining: 5 
-      });
+        storiesGenerated: 0,
+        monthlyStoriesGenerated: 0,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+      const userDocRef = await usersRef.add(newUserData);
+      userId = userDocRef.id;
+      user = { id: userId, ...newUserData };
+    } else {
+      const userDoc = userQuery.docs[0];
+      userId = userDoc.id;
+      user = { id: userId, ...userDoc.data() };
     }
     
     // Crear sesión de checkout
@@ -40,15 +55,17 @@ const createCheckoutSession = async (req, res) => {
       success_url: `${process.env.FRONTEND_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.FRONTEND_URL}/subscribe`,
       customer_email: email,
-      client_reference_id: user._id.toString(),
+      client_reference_id: userId,
       metadata: {
-        userId: user._id.toString()
+        userId: userId,
+        email: email
       }
     });
     
     console.log('🟢 DEBUG CHECKOUT: Sesión creada', {
       sessionId: session.id,
-      url: session.url
+      url: session.url,
+      userId: userId
     });
     
     res.json({ 
@@ -95,41 +112,48 @@ const handleSuccess = async (req, res) => {
       return res.status(400).json({ error: 'Pago no completado' });
     }
 
-    // Buscar usuario
+    // Buscar usuario en Firestore
     const userId = session.client_reference_id;
-    const user = await User.findById(userId);
+    const userRef = db.collection('users').doc(userId);
+    const userDoc = await userRef.get();
     
-    if (!user) {
+    if (!userDoc.exists) {
       console.log(`🔴 DEBUG SUCCESS: Usuario no encontrado con ID: ${userId}`);
       return res.status(404).json({ error: 'Usuario no encontrado' });
     }
 
+    const userData = userDoc.data();
     console.log('🔍 DEBUG SUCCESS: Usuario antes de actualizar', {
-      email: user.email,
-      subscriptionStatus: user.subscriptionStatus
+      email: userData.email,
+      subscriptionStatus: userData.subscriptionStatus
     });
 
-    // Actualizar información de usuario
-    user.subscriptionStatus = 'active';
-    user.stripeCustomerId = session.customer;
-    user.stripeSubscriptionId = session.subscription;
-    user.storiesRemaining = 30;
+    // Actualizar información de usuario en Firestore
+    const updateData = {
+      subscriptionStatus: 'active',
+      stripeCustomerId: session.customer,
+      stripeSubscriptionId: session.subscription,
+      monthlyStoriesGenerated: 0, // Reset monthly count when subscription becomes active
+      lastMonthReset: new Date(),
+      subscriptionStartDate: new Date(),
+      updatedAt: new Date()
+    };
 
-    await user.save();
+    await userRef.update(updateData);
 
     console.log('🟢 DEBUG SUCCESS: Usuario después de actualizar', {
-      email: user.email,
-      subscriptionStatus: user.subscriptionStatus
+      email: userData.email,
+      subscriptionStatus: 'active'
     });
 
     res.json({
       success: true,
       message: 'Suscripción activada exitosamente',
       user: {
-        id: user._id,
-        email: user.email,
-        subscriptionStatus: user.subscriptionStatus,
-        storiesRemaining: user.storiesRemaining
+        id: userId,
+        email: userData.email,
+        subscriptionStatus: 'active',
+        ...updateData
       }
     });
   } catch (error) {
@@ -196,23 +220,33 @@ const handleWebhook = async (req, res) => {
         clientReferenceId: session.client_reference_id
       });
 
-      // Buscar usuario por el ID de referencia del cliente
-      const user = await User.findById(session.client_reference_id);
-      if (!user) {
-        console.error('🔴 ERROR: Usuario no encontrado');
+      // Buscar usuario en Firestore por ID
+      const userId = session.client_reference_id;
+      const userRef = db.collection('users').doc(userId);
+      const userDoc = await userRef.get();
+      
+      if (!userDoc.exists) {
+        console.error('🔴 ERROR: Usuario no encontrado con ID:', userId);
         return res.status(404).json({ error: 'Usuario no encontrado' });
       }
 
       // Actualizar estado de suscripción
-      user.subscriptionStatus = 'active';
-      user.stripeCustomerId = session.customer;
-      user.stripeSubscriptionId = session.subscription;
-      user.storiesRemaining = 30;
-      await user.save();
+      const updateData = {
+        subscriptionStatus: 'active',
+        stripeCustomerId: session.customer,
+        stripeSubscriptionId: session.subscription,
+        monthlyStoriesGenerated: 0,
+        lastMonthReset: new Date(),
+        subscriptionStartDate: new Date(),
+        updatedAt: new Date()
+      };
+      
+      await userRef.update(updateData);
 
+      const userData = userDoc.data();
       console.log('🟢 USUARIO ACTUALIZADO:', {
-        email: user.email,
-        subscriptionStatus: user.subscriptionStatus
+        email: userData.email,
+        subscriptionStatus: 'active'
       });
     }
 
@@ -226,24 +260,33 @@ const handleWebhook = async (req, res) => {
       });
 
       // Buscar usuario por el ID del cliente de Stripe
-      const user = await User.findOne({ stripeCustomerId: subscription.customer });
-      if (!user) {
+      const usersRef = db.collection('users');
+      const userQuery = await usersRef.where('stripeCustomerId', '==', subscription.customer).get();
+      
+      if (userQuery.empty) {
         console.log('🔴 USUARIO NO ENCONTRADO PARA EL CLIENTE:', subscription.customer);
         return res.status(404).json({ error: 'Usuario no encontrado' });
       }
 
-      // Actualizar estado de suscripción
-      user.subscriptionStatus = subscription.status;
-      user.isPremium = true;
-      user.stripeSubscriptionId = subscription.id;
-      user.storiesRemaining = 30;
+      const userDoc = userQuery.docs[0];
+      const userRef = userDoc.ref;
+      const userData = userDoc.data();
 
-      await user.save();
+      // Actualizar estado de suscripción
+      const updateData = {
+        subscriptionStatus: subscription.status,
+        stripeSubscriptionId: subscription.id,
+        monthlyStoriesGenerated: 0,
+        lastMonthReset: new Date(),
+        updatedAt: new Date()
+      };
+
+      await userRef.update(updateData);
+      
       console.log('🟢 USUARIO ACTUALIZADO:', {
-        email: user.email,
-        subscriptionStatus: user.subscriptionStatus,
-        isPremium: user.isPremium,
-        storiesRemaining: user.storiesRemaining
+        email: userData.email,
+        subscriptionStatus: subscription.status,
+        stripeSubscriptionId: subscription.id
       });
     }
 
@@ -256,21 +299,31 @@ const handleWebhook = async (req, res) => {
       });
 
       // Buscar usuario por el ID de cliente de Stripe
-      const user = await User.findOne({ stripeCustomerId: subscription.customer });
-      if (!user) {
+      const usersRef = db.collection('users');
+      const userQuery = await usersRef.where('stripeCustomerId', '==', subscription.customer).get();
+      
+      if (userQuery.empty) {
         console.error('🔴 ERROR: Usuario no encontrado');
         return res.status(404).json({ error: 'Usuario no encontrado' });
       }
 
+      const userDoc = userQuery.docs[0];
+      const userRef = userDoc.ref;
+      const userData = userDoc.data();
+
       // Actualizar estado de suscripción
-      user.subscriptionStatus = 'cancelled';
-      user.stripeSubscriptionId = null;
-      user.isPremium = false;
-      await user.save();
+      const updateData = {
+        subscriptionStatus: 'cancelled',
+        stripeSubscriptionId: null,
+        subscriptionEndDate: new Date(),
+        updatedAt: new Date()
+      };
+      
+      await userRef.update(updateData);
 
       console.log('🟢 USUARIO ACTUALIZADO:', {
-        email: user.email,
-        subscriptionStatus: user.subscriptionStatus
+        email: userData.email,
+        subscriptionStatus: 'cancelled'
       });
     }
 

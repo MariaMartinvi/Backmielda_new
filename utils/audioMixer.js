@@ -12,6 +12,14 @@ const BACKGROUND_MUSIC_DIR = path.join(__dirname, '../assets/background-music');
 // Cache for FFmpeg availability check
 let ffmpegAvailable = null;
 
+/**
+ * Reset FFmpeg availability cache - useful for troubleshooting
+ */
+function resetFFmpegCache() {
+  console.log('🔄 Resetting FFmpeg availability cache...');
+  ffmpegAvailable = null;
+}
+
 // Available background music tracks
 const BACKGROUND_MUSIC_TRACKS = {
   'relaxing': 'relaxing-ambient.mp3',
@@ -31,27 +39,41 @@ const BACKGROUND_MUSIC_TRACKS = {
 async function checkFFmpegAvailability() {
   // Return cached result if available
   if (ffmpegAvailable !== null) {
+    console.log(`🔄 Using cached FFmpeg availability result: ${ffmpegAvailable}`);
     return ffmpegAvailable;
   }
   
   try {
     console.log('🔍 Checking FFmpeg availability...');
     console.log('🔧 FFmpeg path:', FFMPEG_PATHS.ffmpeg);
+    console.log('🌍 Environment:', process.env.NODE_ENV || 'development');
+    console.log('🖥️ Platform:', process.platform);
     
     // Test FFmpeg with a simple command
-    const { stdout } = await execPromise(`"${FFMPEG_PATHS.ffmpeg}" -version`, { timeout: 5000 });
+    const { stdout } = await execPromise(`"${FFMPEG_PATHS.ffmpeg}" -version`, { timeout: 10000 });
     
     if (stdout.includes('ffmpeg version')) {
       console.log('✅ FFmpeg is available and working');
+      console.log('📋 FFmpeg version info:', stdout.split('\n')[0]);
       ffmpegAvailable = true;
       return true;
     } else {
-      console.log('❌ FFmpeg version check failed');
+      console.log('❌ FFmpeg version check failed - unexpected output');
+      console.log('📋 Stdout:', stdout);
       ffmpegAvailable = false;
       return false;
     }
   } catch (error) {
     console.error('❌ FFmpeg is not available:', error.message);
+    console.log('📋 Full error details:', error);
+    
+    // Enhanced logging for production environments
+    if (process.env.NODE_ENV === 'production') {
+      console.log('🏭 Production environment detected - FFmpeg may not be installed');
+      console.log('💡 This means audio will be generated without background music');
+      console.log('💡 To enable background music, install FFmpeg on the server');
+    }
+    
     console.log('⚠️ Audio mixing will be disabled - returning original TTS audio only');
     ffmpegAvailable = false;
     return false;
@@ -110,6 +132,8 @@ async function mixAudioWithBackground(ttsAudioBase64, musicTrack = 'random', mus
   try {
     console.log('--------------------------------------------------');
     console.log('🎵 STARTING AUDIO MIXING PROCESS 🎵');
+    console.log(`🎶 Requested music track: ${musicTrack}`);
+    console.log(`🔊 Requested volume: ${musicVolume}`);
     
     // Verificación explícita para "none" - no mezclar con música
     if (musicTrack === 'none') {
@@ -121,7 +145,10 @@ async function mixAudioWithBackground(ttsAudioBase64, musicTrack = 'random', mus
     // Check if FFmpeg is available before proceeding
     const ffmpegIsAvailable = await checkFFmpegAvailability();
     if (!ffmpegIsAvailable) {
-      console.log('⚠️ FFmpeg not available - returning original TTS audio without background music');
+      console.log('🚨 ATTENTION: FFmpeg not available on this server!');
+      console.log('📝 The audio will be generated WITHOUT background music');
+      console.log('🔧 To enable background music, install FFmpeg on the server');
+      console.log('⚠️ Returning original TTS audio without background music');
       console.log('--------------------------------------------------');
       return ttsAudioBase64;
     }
@@ -283,5 +310,6 @@ module.exports = {
   mixAudioWithBackground,
   getRandomMusicTrack,
   checkFFmpegAvailability,
+  resetFFmpegCache,
   BACKGROUND_MUSIC_TRACKS
 }; 

@@ -64,7 +64,7 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const storyRoutes = require('./routes/storyRoutes');
 // const authRoutes = require('./routes/authRoutes'); // Firebase Auth handled in frontend
-// const stripeRoutes = require('./routes/stripeRoutes'); // Needs Firebase update
+const stripeRoutes = require('./routes/stripeRoutes'); // Updated for Firebase
 // const subscriptionRoutes = require('./routes/subscriptionRoutes'); // Needs Firebase update
 // const newsletterRoutes = require('./routes/newsletterRoutes'); // Needs Firebase update
 // const ratingsRoutes = require('./routes/ratingsRoutes'); // Needs Firebase update
@@ -254,8 +254,47 @@ app.get('/test-mix-audio', async (req, res) => {
       res.status(500).json({ error: 'Failed to mix audio' });
     }
   } catch (error) {
-    console.error('Error in test endpoint:', error);
-    res.status(500).json({ error: 'An error occurred' });
+    console.error('Error in test-mix-audio:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Debug endpoint to check FFmpeg status and reset cache
+app.get('/debug-ffmpeg', async (req, res) => {
+  try {
+    const { checkFFmpegAvailability, resetFFmpegCache } = require('./utils/audioMixer');
+    const FFMPEG_PATHS = require('./config/ffmpeg');
+    
+    console.log('🔍 DEBUG: FFmpeg status check requested');
+    
+    // Reset cache to force fresh check
+    resetFFmpegCache();
+    
+    // Check FFmpeg availability
+    const isAvailable = await checkFFmpegAvailability();
+    
+    // Additional system info
+    const systemInfo = {
+      platform: process.platform,
+      nodeEnv: process.env.NODE_ENV,
+      ffmpegPath: FFMPEG_PATHS.ffmpeg,
+      ffprobePath: FFMPEG_PATHS.ffprobe
+    };
+    
+    console.log('📊 System info:', systemInfo);
+    
+    res.json({
+      ffmpegAvailable: isAvailable,
+      systemInfo: systemInfo,
+      message: isAvailable ? 'FFmpeg is working correctly' : 'FFmpeg is not available',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error in debug-ffmpeg:', error);
+    res.status(500).json({ 
+      error: 'Error checking FFmpeg status',
+      details: error.message
+    });
   }
 });
 
@@ -268,9 +307,8 @@ console.log('Story routes registered');
 // app.use('/api/auth', authRoutes);
 // console.log('Auth routes registered');
 
-// Stripe and subscription routes - need to be updated for Firebase
-// app.use('/api/stripe', stripeRoutes);
-// console.log('Stripe routes registered');
+app.use('/api/stripe', stripeRoutes);
+console.log('Stripe routes registered');
 
 app.use('/api/audio', audioRoutes);
 console.log('Audio routes registered');
