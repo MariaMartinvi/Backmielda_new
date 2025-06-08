@@ -664,7 +664,7 @@ async function uploadToFirebaseStorage(localFilePath, storagePath) {
 // Function to generate image with OpenAI
 async function generateStoryImage(title) {
     try {
-        const prompt = `Create a children's storybook illustration for the title "${title}". Style: vintage storybook, warm colors, detailed but child-friendly.`;
+        const prompt = `Create a children's storybook illustration for the title "${title}". Style: vintage storybook, warm colors, detailed but child-friendly. IMPORTANT: NO TEXT OR WORDS should appear in the image - only visual elements like characters, scenery, and objects. Pure illustration without any written text, letters, or captions.`;
         const response = await openaiService.generateImage(prompt);
         return response.data[0].url;
     } catch (error) {
