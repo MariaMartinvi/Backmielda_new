@@ -1025,3 +1025,9 @@ exports.getTopRatedStories = async (req, res) => {
     res.status(500).json({ error: 'Error fetching top rated stories' });
   }
 };
+
+// Test if backend is reachable
+fetch('https://generadorcuentos.onrender.com/api/health')
+  .then(response => response.json())
+  .then(data => console.log('Backend health:', data))
+  .catch(error => console.error('Backend unreachable:', error));

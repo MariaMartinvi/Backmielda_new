@@ -55,9 +55,15 @@ if (!admin.apps.length) {
         
         console.log('✅ Firebase Admin initialized with environment variables');
         
-        // Test the connection
-        await admin.auth().listUsers(1);
-        console.log('✅ Firebase Auth connection verified');
+        // Test the connection asynchronously (don't block startup)
+        setImmediate(async () => {
+          try {
+            await admin.auth().listUsers(1);
+            console.log('✅ Firebase Auth connection verified');
+          } catch (verifyError) {
+            console.warn('⚠️ Firebase Auth verification failed:', verifyError.message);
+          }
+        });
         
         initialized = true;
       } catch (error) {
@@ -124,10 +130,16 @@ if (!admin.apps.length) {
       throw new Error('Failed to initialize Firebase Admin - all initialization methods exhausted');
     }
 
-    // Verify Firestore connection
-    const db = admin.firestore();
-    await db.collection('_health_check').doc('test').get();
-    console.log('✅ Firestore connection verified');
+    // Verify Firestore connection asynchronously (don't block startup)
+    setImmediate(async () => {
+      try {
+        const db = admin.firestore();
+        await db.collection('_health_check').doc('test').get();
+        console.log('✅ Firestore connection verified');
+      } catch (firestoreError) {
+        console.warn('⚠️ Firestore connection verification failed:', firestoreError.message);
+      }
+    });
 
   } catch (error) {
     console.error('❌ CRITICAL ERROR: Firebase Admin initialization failed completely');
