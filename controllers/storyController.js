@@ -73,7 +73,12 @@ exports.generateStory = async (req, res, next) => {
 
     // Get system message by language
     let systemMessage;
-    switch (language) {
+    
+    // Normalize language code (handle variants like en-GB, en-US, etc.)
+    const normalizedLanguage = language.toLowerCase().split('-')[0];
+    console.log(`🌍 [LANGUAGE] Original: ${language}, Normalized: ${normalizedLanguage}`);
+    
+    switch (normalizedLanguage) {
       case 'en':
         systemMessage = `You are a creative children's story writer in English. Create original, coherent and captivating stories that are fun and engaging for children.
 
@@ -194,8 +199,11 @@ Escribe la historia en español.`;
         break;
     }
 
-    // Construct the prompt
-    const prompt = constructPrompt(req.body);
+    // Construct the prompt with normalized language
+    const prompt = constructPrompt({
+      ...req.body,
+      language: normalizedLanguage
+    });
 
     // Log complete OpenAI request with better formatting
     console.log('\n' + '🔥'.repeat(40));
@@ -288,7 +296,7 @@ Escribe la historia en español.`;
       content: contentWithTitle,  // Save content with title included
       email,  // Guardar el email del usuario
       user: user.uid,  // Associate with Firebase user UID
-      language: language,  // Save language
+      language: normalizedLanguage,  // Save normalized language
       ageGroup: ageGroup,  // Save age group
       englishLevel: englishLevel,  // Save English level
       spanishLevel: spanishLevel,  // Save Spanish level
@@ -417,17 +425,21 @@ exports.generateAudio = async (req, res, next) => {
       usedMusicTrack = musicTrack || 'random';
       console.log(`🎵 Using background music track: ${usedMusicTrack}`);
       
-      // Mix with background music
-      finalAudioData = await mixAudioWithBackground(
+      // Mix with background music - this returns base64 string, not Buffer
+      const mixedAudioBase64 = await mixAudioWithBackground(
         audioData,
         usedMusicTrack,
         0.1  // Fixed volume at 10%
       );
-      console.log(`🎵 [DEBUG] Final audio (with music) size: ${finalAudioData ? finalAudioData.length : 'NULL'} bytes`);
+      console.log(`🎵 [DEBUG] Mixed audio (base64) size: ${mixedAudioBase64 ? mixedAudioBase64.length : 'NULL'} characters`);
       
-      if (!finalAudioData || finalAudioData.length === 0) {
+      if (!mixedAudioBase64 || mixedAudioBase64.length === 0) {
         console.error('❌ [DEBUG] Audio mixing returned empty data! Falling back to TTS only');
-        finalAudioData = audioData;
+        finalAudioData = audioData;  // Use original TTS audio as Buffer
+      } else {
+        // Convert base64 string back to Buffer for consistency
+        finalAudioData = Buffer.from(mixedAudioBase64, 'base64');
+        console.log(`🎵 [DEBUG] Converted mixed audio to Buffer, size: ${finalAudioData.length} bytes`);
       }
     }
     
@@ -441,10 +453,43 @@ exports.generateAudio = async (req, res, next) => {
     };
     
     try {
+      console.log('🎯 [DEBUG] Starting temporary data save process...');
       // Store the audio data temporarily (will be used during publish without regenerating)
-      const audioBase64 = finalAudioData.toString('base64');
-      console.log(`📊 [AUDIO] Audio data size: ${finalAudioData.length} bytes, base64 size: ${audioBase64.length} characters`);
       
+      // Ensure finalAudioData is always a Buffer for consistent handling
+      let audioBuffer;
+      let audioBase64;
+      
+      if (typeof finalAudioData === 'string') {
+        // finalAudioData is base64 string (from mixing)
+        console.log(`📊 [AUDIO] Audio data is base64 string, length: ${finalAudioData.length} characters`);
+        audioBase64 = finalAudioData;
+        audioBuffer = Buffer.from(finalAudioData, 'base64');
+      } else {
+        // finalAudioData is Buffer (no mixing)
+        console.log(`📊 [AUDIO] Audio data is Buffer, size: ${finalAudioData.length} bytes`);
+        audioBuffer = finalAudioData;
+        audioBase64 = finalAudioData.toString('base64');
+      }
+      
+      console.log(`📊 [AUDIO] Final audio - Buffer size: ${audioBuffer.length} bytes, base64 size: ${audioBase64.length} characters`);
+      
+      // ADDITIONAL DEBUGGING: Verify audioBuffer contains valid MP3
+      if (audioBuffer && audioBuffer.length > 0) {
+        const first4Bytes = audioBuffer.slice(0, 4);
+        const hexString = first4Bytes.toString('hex').toUpperCase();
+        console.log(`🧪 [DEBUG] Generated audio first 4 bytes (hex): ${hexString}`);
+        
+        if (hexString.startsWith('FF') || hexString.includes('ID3')) {
+          console.log('✅ [DEBUG] Generated audio appears to be valid MP3 format');
+        } else {
+          console.log('⚠️ [DEBUG] Generated audio may not be valid MP3 format');
+          console.log(`🧪 [DEBUG] Raw bytes: ${audioBuffer.slice(0, 10)}`);
+        }
+      } else {
+        console.error('❌ [DEBUG] audioBuffer is empty or null!');
+      }
+
       // Check if audio is too large for database storage (Firestore has 1MB limit per document)
       if (audioBase64.length > 800000) { // Leave some margin (800KB)
         console.log('⚠️ [AUDIO] Audio too large for database storage, saving to temporary file instead');
@@ -455,7 +500,7 @@ exports.generateAudio = async (req, res, next) => {
         
         const tempAudioFileName = `temp_${storyId}_${Date.now()}.mp3`;
         const tempAudioFilePath = path.join(tempDir, tempAudioFileName);
-        await fs.writeFile(tempAudioFilePath, finalAudioData);
+        await fs.writeFile(tempAudioFilePath, audioBuffer);
         
         const tempAudioStoragePath = await uploadToFirebaseStorage(tempAudioFilePath, `temp-audio/${tempAudioFileName}`);
         
@@ -484,7 +529,7 @@ exports.generateAudio = async (req, res, next) => {
     console.log('🎵 [AUDIO] Returning temporary audio for immediate playback');
     res.status(200).json({
       success: true,
-      audioUrl: `data:audio/mp3;base64,${finalAudioData}`,
+      audioUrl: `data:audio/mp3;base64,${audioBase64}`,
       format: 'mp3',
       parameters: audioParams,
       audioGenerations: story.audioGenerations
@@ -861,7 +906,29 @@ exports.publishStory = async (req, res) => {
                 if (story.tempAudioData) {
                     // Audio data stored in database
                     console.log(`📊 [PUBLISH] Using audio data from database, size: ${story.tempAudioData.length} characters`);
-                    finalAudioContent = Buffer.from(story.tempAudioData, 'base64');
+                    
+                    // DEBUGGING: Test if tempAudioData is valid base64
+                    try {
+                        const testBuffer = Buffer.from(story.tempAudioData, 'base64');
+                        console.log(`🧪 [DEBUG] Base64 conversion successful, buffer size: ${testBuffer.length} bytes`);
+                        
+                        // Validate that it looks like MP3 data (check for MP3 headers)
+                        const first4Bytes = testBuffer.slice(0, 4);
+                        const hexString = first4Bytes.toString('hex').toUpperCase();
+                        console.log(`🧪 [DEBUG] First 4 bytes (hex): ${hexString}`);
+                        
+                        if (hexString.startsWith('FF') || hexString.includes('ID3')) {
+                            console.log('✅ [DEBUG] Audio data appears to be valid MP3 format');
+                        } else {
+                            console.log('⚠️ [DEBUG] Audio data may not be valid MP3 format');
+                        }
+                        
+                        finalAudioContent = testBuffer;
+                    } catch (base64Error) {
+                        console.error('❌ [DEBUG] Base64 conversion failed:', base64Error.message);
+                        throw new Error('Stored audio data is corrupted - invalid base64');
+                    }
+                    
                     console.log(`📊 [PUBLISH] Converted audio buffer size: ${finalAudioContent.length} bytes`);
                 } else if (story.tempAudioPath) {
                     // Audio file stored in temporary Firebase Storage
@@ -897,6 +964,26 @@ exports.publishStory = async (req, res) => {
                 const fileStats = await fs.stat(audioFilePath);
                 console.log(`📊 [PUBLISH] File stats - size: ${fileStats.size} bytes, created: ${fileStats.birthtime}`);
                 
+                // ADDITIONAL DEBUGGING: Read the file back and verify content
+                try {
+                    const writtenFileContent = await fs.readFile(audioFilePath);
+                    console.log(`🧪 [DEBUG] File read back successfully, size: ${writtenFileContent.length} bytes`);
+                    
+                    // Verify first few bytes match what we wrote
+                    const originalFirst4 = finalAudioContent.slice(0, 4);
+                    const writtenFirst4 = writtenFileContent.slice(0, 4);
+                    console.log(`🧪 [DEBUG] Original first 4 bytes: ${originalFirst4.toString('hex').toUpperCase()}`);
+                    console.log(`🧪 [DEBUG] Written first 4 bytes: ${writtenFirst4.toString('hex').toUpperCase()}`);
+                    
+                    if (originalFirst4.equals(writtenFirst4)) {
+                        console.log('✅ [DEBUG] File content matches original data');
+                    } else {
+                        console.log('❌ [DEBUG] File content does NOT match original data!');
+                    }
+                } catch (readError) {
+                    console.error('❌ [DEBUG] Failed to read written file:', readError.message);
+                }
+                
                 if (fileStats.size === 0) {
                     console.error('❌ [PUBLISH] Written audio file is empty!');
                     throw new Error('Audio file written to disk is empty');
@@ -904,6 +991,27 @@ exports.publishStory = async (req, res) => {
                 
                 audioPath = await uploadToFirebaseStorage(audioFilePath, `audio/${audioFileName}`);
                 console.log(`✅ [PUBLISH] Audio uploaded to Firebase Storage: ${audioPath}`);
+                
+                // ADDITIONAL DEBUGGING: Verify uploaded file in Firebase
+                try {
+                    const bucket = getFirebaseStorageBucket();
+                    const uploadedFile = bucket.file(`audio/${audioFileName}`);
+                    const [metadata] = await uploadedFile.getMetadata();
+                    console.log(`🧪 [DEBUG] Firebase file metadata:`, {
+                        name: metadata.name,
+                        size: metadata.size,
+                        contentType: metadata.contentType,
+                        timeCreated: metadata.timeCreated
+                    });
+                    
+                    if (parseInt(metadata.size) === 0) {
+                        console.error('❌ [DEBUG] Firebase file size is 0! Upload failed properly');
+                    } else {
+                        console.log('✅ [DEBUG] Firebase file has content');
+                    }
+                } catch (metadataError) {
+                    console.error('❌ [DEBUG] Failed to get Firebase metadata:', metadataError.message);
+                }
                 
                 // Clean up temporary audio data from database (no longer needed)
                 await storyService.update(story.id, { 
@@ -928,7 +1036,9 @@ exports.publishStory = async (req, res) => {
                     console.log('🎤 [PUBLISH] No previous audio settings, using defaults based on story language');
                     // Determine the appropriate voice based on story language
                     const getVoiceForLanguage = (language) => {
-                        switch (language) {
+                        // Normalize language code
+                        const normalizedLang = language.toLowerCase().split('-')[0];
+                        switch (normalizedLang) {
                             case 'en':
                                 return 'female-english';
                             case 'ca':
@@ -944,7 +1054,7 @@ exports.publishStory = async (req, res) => {
                             case 'fr':
                                 return 'female-french';
                             case 'pt':
-                                return 'female-portuguese-pt';
+                                return 'female-portuguese-br';
                             case 'es':
                             default:
                                 return 'female'; // Spanish voice (default)
@@ -955,6 +1065,8 @@ exports.publishStory = async (req, res) => {
                     speechRate = 1.0;
                     musicTrack = 'random';
                     musicVolume = 0.1;
+                    
+                    console.log(`🎤 [PUBLISH] Selected voice for language "${story.language}": ${voiceToUse}`);
                 }
                 
                 console.log(`🎤 [PUBLISH] Generating audio with: voice="${voiceToUse}", speed=${speechRate}, music="${musicTrack}"`);
@@ -975,11 +1087,14 @@ exports.publishStory = async (req, res) => {
                     finalAudioContent = ttsAudioContent;
                 } else {
                     console.log(`🎵 [PUBLISH] Mixing with background music: ${musicTrack}`);
-                    finalAudioContent = await mixAudioWithBackground(
+                    const mixedAudioBase64 = await mixAudioWithBackground(
                         ttsAudioContent,
                         musicTrack,
                         musicVolume
                     );
+                    // Convert base64 string back to Buffer for file operations
+                    finalAudioContent = Buffer.from(mixedAudioBase64, 'base64');
+                    console.log(`🎵 [PUBLISH] Converted mixed audio to Buffer, size: ${finalAudioContent.length} bytes`);
                 }
                 
                 const audioFileName = `${storyId}.mp3`;

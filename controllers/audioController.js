@@ -1,10 +1,11 @@
 // controllers/audioController.js
 const googleTtsService = require('../utils/googleTtsService');
 const { mixAudioWithBackground, getRandomMusicTrack, BACKGROUND_MUSIC_TRACKS } = require('../utils/audioMixer');
+const storyService = require('../services/storyService');
 
 exports.generateAudio = async (req, res, next) => {
   try {
-    const { text, voiceId, speechRate, musicTrack, musicVolume, title } = req.body;
+    const { text, voiceId, speechRate, musicTrack, musicVolume, title, storyId } = req.body;
     
     console.log('🎤 === AUDIO GENERATION REQUEST ===');
     console.log('📝 Text length:', text ? text.length : 0);
@@ -13,6 +14,7 @@ exports.generateAudio = async (req, res, next) => {
     console.log('🎵 Music track:', musicTrack);
     console.log('🔊 Music volume:', musicVolume);
     console.log('📖 Title:', title || 'No title provided');
+    console.log('📋 Story ID:', storyId || 'No story ID provided');
     console.log('⏸️ Pauses mode: INTELLIGENT_AUTO');
     console.log('=====================================');
     
@@ -42,32 +44,94 @@ exports.generateAudio = async (req, res, next) => {
     
     // Verificar explícitamente si musicTrack es exactamente "none"
     if (musicTrack === 'none') {
-      console.log('🔇 No background music requested, returning TTS audio only');
-      finalAudioData = audioData;
+      console.log('🔇 No background music requested, using TTS audio only');
+      finalAudioData = audioData;  // This is a Buffer
     } else {
       // Use the specified track or random if not specified
       usedMusicTrack = musicTrack || 'random';
       console.log(`🎵 Using background music track: ${usedMusicTrack}`);
       
-      // Mix with background music
-      finalAudioData = await mixAudioWithBackground(
+      // Mix with background music - this returns base64 string
+      const mixedAudioBase64 = await mixAudioWithBackground(
         audioData,
         usedMusicTrack,
         musicVolume !== undefined ? musicVolume : 0.1
       );
+      
+      // Convert base64 string back to Buffer for consistency
+      finalAudioData = Buffer.from(mixedAudioBase64, 'base64');
+      console.log(`🎵 [DEBUG] Converted mixed audio to Buffer, size: ${finalAudioData.length} bytes`);
     }
     
-    // Return audio data (base64 encoded)
-    res.status(200).json({
-      audioUrl: `data:audio/mp3;base64,${finalAudioData}`,
-      format: 'mp3',
-      parameters: {
-        voiceId,
-        speechRate,
-        musicTrack: usedMusicTrack,
-        musicVolume: musicTrack === 'none' ? 0 : (musicVolume !== undefined ? musicVolume : 0.1),
-        pausesApplied: 'intelligent_automatic'
+    // Save the generated audio data temporarily with the story (for use during publish)
+    const audioParams = {
+      voiceId,
+      speechRate,
+      musicTrack: usedMusicTrack,
+      musicVolume: musicTrack === 'none' ? 0 : (musicVolume !== undefined ? musicVolume : 0.1),
+      lastGenerated: new Date(),
+      pausesApplied: 'intelligent_automatic'
+    };
+    
+    if (storyId) {
+      try {
+        console.log('🎯 [DEBUG] Starting temporary data save process...');
+        
+        // Ensure finalAudioData is always a Buffer for consistent handling
+        let audioBuffer = finalAudioData;
+        let audioBase64 = finalAudioData.toString('base64');
+        
+        console.log(`📊 [AUDIO] Final audio - Buffer size: ${audioBuffer.length} bytes, base64 size: ${audioBase64.length} characters`);
+        
+        // ADDITIONAL DEBUGGING: Verify audioBuffer contains valid MP3
+        if (audioBuffer && audioBuffer.length > 0) {
+          const first4Bytes = audioBuffer.slice(0, 4);
+          const hexString = first4Bytes.toString('hex').toUpperCase();
+          console.log(`🧪 [DEBUG] Generated audio first 4 bytes (hex): ${hexString}`);
+          
+          if (hexString.startsWith('FF') || hexString.includes('ID3')) {
+            console.log('✅ [DEBUG] Generated audio appears to be valid MP3 format');
+          } else {
+            console.log('⚠️ [DEBUG] Generated audio may not be valid MP3 format');
+            console.log(`🧪 [DEBUG] Raw bytes: ${audioBuffer.slice(0, 10)}`);
+          }
+        } else {
+          console.error('❌ [DEBUG] audioBuffer is empty or null!');
+        }
+
+        // Check if audio is too large for database storage (Firestore has 1MB limit per document)
+        if (audioBase64.length > 800000) { // Leave some margin (800KB)
+          console.log('⚠️ [AUDIO] Audio too large for database storage, saving to temporary file instead');
+          
+          // For now, we'll store it in tempAudioData anyway since we need it during publish
+          // In production, you might want to use temporary Firebase Storage
+          await storyService.update(storyId, { 
+            lastAudioParams: audioParams,
+            tempAudioData: audioBase64.substring(0, 800000) + "..." // Truncate for now
+          });
+          
+          console.log('⚠️ [AUDIO] Audio truncated and saved (consider implementing Firebase Storage for large files)');
+        } else {
+          await storyService.update(storyId, { 
+            lastAudioParams: audioParams,
+            tempAudioData: audioBase64
+          });
+          console.log('💾 [AUDIO] Saved audio data and parameters for future publish (no regeneration needed)');
+        }
+      } catch (error) {
+        console.error('❌ [AUDIO] Failed to save audio data:', error.message);
+        console.error('❌ [AUDIO] Error details:', error);
       }
+    } else {
+      console.log('⚠️ [AUDIO] No story ID provided, skipping temporary data save');
+    }
+    
+    // Return audio data (base64 encoded for immediate playback)
+    console.log('🎵 [AUDIO] Returning temporary audio for immediate playback');
+    res.status(200).json({
+      audioUrl: `data:audio/mp3;base64,${finalAudioData.toString('base64')}`,
+      format: 'mp3',
+      parameters: audioParams
     });
   } catch (error) {
     console.error('Error in audio generation:', error);

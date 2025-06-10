@@ -16,77 +16,110 @@ function escapeSSML(text) {
 // Helper function to get Google voice name based on voice ID
 function getGoogleVoiceName(voiceId) {
   switch (voiceId) {
-    // Español España
+    // Español España - UPGRADED TO CHIRP3 HD (BEST FOR STORYTELLING)
     case 'male':
     case 'male-spanish':
-      return 'es-ES-Neural2-B'; // MALE voice
+      return 'es-ES-Chirp3-HD-Achird'; // PREMIUM STORYTELLING VOICE
     case 'female':
     case 'female-spanish':
-      return 'es-ES-Neural2-A'; // FEMALE voice
+      return 'es-ES-Chirp3-HD-Achernar'; // PREMIUM STORYTELLING VOICE
     
-    // Español Latinoamérica
+    // Español Latinoamérica - UPGRADED TO CHIRP3 HD
     case 'female-latam':
-      return 'es-US-Neural2-A';
+      return 'es-US-Chirp3-HD-Achernar'; // PREMIUM STORYTELLING VOICE
     case 'male-latam':
-      return 'es-US-Neural2-B';
+      return 'es-US-Chirp3-HD-Achird'; // PREMIUM STORYTELLING VOICE
     
-    // Inglés
+    // Inglés - UPGRADED TO CHIRP3 HD (BEST FOR STORYTELLING)
     case 'female-english':
-      return 'en-US-Neural2-F';
+      return 'en-US-Chirp3-HD-Achernar'; // PREMIUM STORYTELLING VOICE
     case 'male-english':
-      return 'en-US-Neural2-D';
+      return 'en-US-Chirp3-HD-Achird'; // PREMIUM STORYTELLING VOICE
     
-    // Catalán
+    // Catalán - Mantener Standard (no hay opciones premium)
     case 'female-catalan':
       return 'ca-ES-Standard-A';
     case 'male-catalan':
       return 'ca-ES-Standard-B';
     
-    // Gallego
+    // Gallego - Mantener Standard (no hay opciones premium)
     case 'female-galician':
       return 'gl-ES-Standard-A';
     case 'male-galician':
       return 'gl-ES-Standard-B';
     
-    // Euskera
+    // Euskera - Mantener Standard (no hay opciones premium)
     case 'female-basque':
       return 'eu-ES-Standard-A';
     case 'male-basque':
       return 'eu-ES-Standard-B';
     
-    // Alemán
+    // Alemán - UPGRADED TO CHIRP3 HD
     case 'female-german':
-      return 'de-DE-Neural2-A';
+      return 'de-DE-Chirp3-HD-Achernar'; // PREMIUM STORYTELLING VOICE
     case 'male-german':
-      return 'de-DE-Neural2-B';
+      return 'de-DE-Chirp3-HD-Achird'; // PREMIUM STORYTELLING VOICE
     
-    // Italiano
+    // Italiano - UPGRADED TO CHIRP3 HD
     case 'female-italian':
-      return 'it-IT-Neural2-A';
+      return 'it-IT-Chirp3-HD-Achernar'; // PREMIUM STORYTELLING VOICE
     case 'male-italian':
-      return 'it-IT-Neural2-B';
+      return 'it-IT-Chirp3-HD-Achird'; // PREMIUM STORYTELLING VOICE
     
-    // Francés
+    // Francés - UPGRADED TO CHIRP3 HD (BEST FOR STORYTELLING)
     case 'female-french':
-      return 'fr-FR-Neural2-A';
+      return 'fr-FR-Chirp3-HD-Achernar'; // PREMIUM STORYTELLING VOICE
     case 'male-french':
-      return 'fr-FR-Neural2-B';
+      return 'fr-FR-Chirp3-HD-Achird'; // PREMIUM STORYTELLING VOICE
     
-    // Portugués de Portugal
+    // Portugués de Portugal - UPGRADED TO CHIRP3 HD
     case 'female-portuguese-pt':
-      return 'pt-PT-Neural2-A';
+      return 'pt-PT-Chirp3-HD-Achernar'; // PREMIUM STORYTELLING VOICE
     case 'male-portuguese-pt':
-      return 'pt-PT-Neural2-B';
+      return 'pt-PT-Chirp3-HD-Achird'; // PREMIUM STORYTELLING VOICE
     
-    // Portugués de Brasil
+    // Portugués de Brasil - UPGRADED TO CHIRP3 HD
     case 'female-portuguese-br':
-      return 'pt-BR-Neural2-A';
+      return 'pt-BR-Chirp3-HD-Achernar'; // PREMIUM STORYTELLING VOICE
     case 'male-portuguese-br':
-      return 'pt-BR-Neural2-B';
+      return 'pt-BR-Chirp3-HD-Achird'; // PREMIUM STORYTELLING VOICE
     
     default:
-      return 'es-ES-Neural2-E'; // Default to female Spanish
+      return 'es-ES-Chirp3-HD-Achernar'; // Default to premium female Spanish storytelling voice
   }
+}
+
+// Helper function to check if voice is Chirp3 HD
+function isChirp3HDVoice(voiceName) {
+  return voiceName && voiceName.includes('Chirp3-HD');
+}
+
+// Helper function to process text for Chirp3 HD voices (no SSML, just clean text)
+function processTextForChirp3HD(text, title = null) {
+  console.log("🎵 === PROCESAMIENTO PARA CHIRP3 HD (SOLO TEXTO LIMPIO) ===");
+  console.log("📝 Texto original (primeros 100 caracteres):", text.substring(0, 100) + "...");
+  
+  let processedText = text;
+  
+  // Si tenemos un título separado, agregarlo al principio de forma natural
+  if (title) {
+    console.log(`🎯 TÍTULO SEPARADO DETECTADO: "${title}"`);
+    processedText = `${title}. ${processedText}`;
+  }
+  
+  // Limpiar el texto y dejarlo natural para que Chirp3 HD haga su magia
+  processedText = processedText
+    // Limpiar saltos de línea excesivos
+    .replace(/\n\s*\n/g, ' ')
+    // Normalizar espacios
+    .replace(/\s+/g, ' ')
+    // Limpiar espacios al inicio y final
+    .trim();
+  
+  console.log("✅ Texto procesado para Chirp3 HD - TEXTO LIMPIO SIN PAUSAS ARTIFICIALES");
+  console.log("🎵 === USANDO ENTONACIÓN NATURAL DE CHIRP3 HD ===");
+  
+  return processedText;
 }
 
 // Helper function to get language code based on voice ID
@@ -367,20 +400,6 @@ async function synthesizeSpeech(text, voiceId = 'female', speed = 1.0, useIntell
 
 // Helper function to synthesize a single chunk
 async function synthesizeSingleChunk(text, voiceId = 'female', speed = 1.0, useIntelligentPauses = true, title = null) {
-  const textToSynthesize = useIntelligentPauses ? processTextWithIntelligentPauses(text, title) : `<speak>${escapeSSML(text)}</speak>`;
-  
-  // Check SSML size
-  const ssmlBytes = Buffer.byteLength(textToSynthesize, 'utf8');
-  console.log(`📏 SSML size: ${ssmlBytes} bytes`);
-  
-  if (ssmlBytes > 5000) {
-    throw new Error(`SSML content is ${ssmlBytes} bytes, which exceeds the 5000-byte limit. Text needs to be split into smaller chunks.`);
-  }
-  
-  console.log('🎛️ SSML inteligente generado automáticamente:');
-  console.log(textToSynthesize.substring(0, 200) + '...');
-  console.log('🎛️ Longitud del SSML: ', ssmlBytes, 'bytes');
-  
   const voiceName = getGoogleVoiceName(voiceId);
   const languageCode = getLanguageCode(voiceId);
   
@@ -389,23 +408,66 @@ async function synthesizeSingleChunk(text, voiceId = 'female', speed = 1.0, useI
   console.log(`🎤 Google voice name: "${voiceName}"`);
   console.log(`🌍 Language code: "${languageCode}"`);
   console.log(`⚡ Speed: ${speed}x`);
+  console.log(`🎵 Is Chirp3 HD: ${isChirp3HDVoice(voiceName)}`);
   console.log(`===========================`);
-  console.log('📝 Tipo de entrada: SSML (pausas inteligentes automáticas)');
-  console.log('🔑 Autenticación: API Key');
   
-  const request = {
-    input: { ssml: textToSynthesize },
-    voice: {
-      languageCode: languageCode,
-      name: voiceName,
-      ssmlGender: voiceId.includes('male') && !voiceId.includes('female') ? 'MALE' : 'FEMALE'
-    },
-    audioConfig: {
-      audioEncoding: 'MP3',
-      speakingRate: speed,
-      volumeGainDb: 2.0
+  let request;
+  let textToSynthesize;
+  
+  // Check if this is a Chirp3 HD voice
+  if (isChirp3HDVoice(voiceName)) {
+    // Chirp3 HD voices don't support SSML, use markup instead
+    textToSynthesize = useIntelligentPauses ? processTextForChirp3HD(text, title) : text;
+    
+         console.log('📝 Tipo de entrada: TEXT con pausas nativas (Chirp3 HD)');
+     console.log('🎛️ Texto con pausas nativas generado:');
+    console.log(textToSynthesize.substring(0, 200) + '...');
+    
+         request = {
+       input: { text: textToSynthesize },
+       voice: {
+         languageCode: languageCode,
+         name: voiceName
+       },
+       audioConfig: {
+         audioEncoding: 'MP3',
+         speakingRate: speed,
+         volumeGainDb: 2.0
+       }
+     };
+  } else {
+    // Traditional voices support SSML
+    textToSynthesize = useIntelligentPauses ? processTextWithIntelligentPauses(text, title) : `<speak>${escapeSSML(text)}</speak>`;
+    
+    // Check SSML size
+    const ssmlBytes = Buffer.byteLength(textToSynthesize, 'utf8');
+    console.log(`📏 SSML size: ${ssmlBytes} bytes`);
+    
+    if (ssmlBytes > 5000) {
+      throw new Error(`SSML content is ${ssmlBytes} bytes, which exceeds the 5000-byte limit. Text needs to be split into smaller chunks.`);
     }
-  };
+    
+    console.log('📝 Tipo de entrada: SSML (pausas inteligentes automáticas)');
+    console.log('🎛️ SSML inteligente generado automáticamente:');
+    console.log(textToSynthesize.substring(0, 200) + '...');
+    console.log('🎛️ Longitud del SSML: ', ssmlBytes, 'bytes');
+    
+    request = {
+      input: { ssml: textToSynthesize },
+      voice: {
+        languageCode: languageCode,
+        name: voiceName,
+        ssmlGender: voiceId.includes('male') && !voiceId.includes('female') ? 'MALE' : 'FEMALE'
+      },
+      audioConfig: {
+        audioEncoding: 'MP3',
+        speakingRate: speed,
+        volumeGainDb: 2.0
+      }
+    };
+  }
+  
+  console.log('🔑 Autenticación: API Key');
 
   try {
     console.log(`🚀 Enviando solicitud a Google TTS...`);
@@ -437,9 +499,11 @@ if (process.env.GOOGLE_TTS_API_KEY) {
 module.exports = {
   synthesizeSpeech,
   processTextWithIntelligentPauses,
+  processTextForChirp3HD,
   getGoogleVoiceName,
   getLanguageCode,
   escapeSSML,
   splitTextIntoChunks,
-  synthesizeSingleChunk
+  synthesizeSingleChunk,
+  isChirp3HDVoice
 }; 
