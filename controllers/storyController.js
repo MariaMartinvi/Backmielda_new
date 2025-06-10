@@ -664,12 +664,29 @@ async function uploadToFirebaseStorage(localFilePath, storagePath) {
 // Function to generate image with OpenAI
 async function generateStoryImage(title) {
     try {
+        console.log('🎨 Generating image for story title:', title);
         const prompt = `Create a children's storybook illustration for the title "${title}". Style: vintage storybook, warm colors, detailed but child-friendly. IMPORTANT: NO TEXT OR WORDS should appear in the image - only visual elements like characters, scenery, and objects. Pure illustration without any written text, letters, or captions.`;
         const response = await openaiService.generateImage(prompt);
+        
+        if (!response.data || !response.data[0] || !response.data[0].url) {
+            throw new Error('Invalid response from image generation service');
+        }
+        
+        console.log('✅ Image generated successfully:', response.data[0].url);
         return response.data[0].url;
     } catch (error) {
-        console.error('Error generating image:', error);
-        throw error;
+        console.error('❌ Error generating image:', error.message);
+        
+        // Provide more specific error messages
+        if (error.message.includes('quota') || error.message.includes('billing')) {
+            throw new Error('Image generation quota exceeded. Please try again later.');
+        } else if (error.message.includes('rate') || error.message.includes('limit')) {
+            throw new Error('Image generation rate limit exceeded. Please wait a moment and try again.');
+        } else if (error.message.includes('content_policy')) {
+            throw new Error('Story content violates image generation policy. Please try with a different story.');
+        } else {
+            throw new Error(`Image generation failed: ${error.message}`);
+        }
     }
 }
 
@@ -763,41 +780,73 @@ exports.publishStory = async (req, res) => {
             audioPath = await uploadToFirebaseStorage(audioFilePath, `audio/${audioFileName}`);
         }
 
-        // Generate and save image
-        const imageUrl = await generateStoryImage(story.title);
-        const imageResponse = await fetch(imageUrl);
-        const imageArrayBuffer = await imageResponse.arrayBuffer();
-        const imageBuffer = Buffer.from(imageArrayBuffer);
-        
-        // Compress image to reduce file size (keep quality but reduce size)
-        const compressedImageBuffer = await sharp(imageBuffer)
-            .resize(800, 800, { 
-                fit: 'inside', 
-                withoutEnlargement: true 
-            })
-            .jpeg({ 
-                quality: 85,
-                progressive: true 
-            })
-            .toBuffer();
-        
-        console.log(`📊 Image compression: ${imageBuffer.length} bytes → ${compressedImageBuffer.length} bytes (${Math.round((1 - compressedImageBuffer.length/imageBuffer.length) * 100)}% reduction)`);
-        
-        const imageFileName = `${storyId}.jpg`;
-        const imageFilePath = path.join(tempDir, imageFileName);
-        await fs.writeFile(imageFilePath, compressedImageBuffer);
-        const imagePath = await uploadToFirebaseStorage(imageFilePath, `images/${imageFileName}`);
+        // Generate and save image with retry logic
+        let imagePath;
+        let imageFilePath;
+        try {
+            console.log('🎨 [PUBLISH] Starting image generation...');
+            const imageUrl = await generateStoryImage(story.title);
+            console.log('✅ [PUBLISH] Image URL generated, downloading...');
+            
+            const imageResponse = await fetch(imageUrl);
+            if (!imageResponse.ok) {
+                throw new Error(`Failed to download image: ${imageResponse.status} ${imageResponse.statusText}`);
+            }
+            
+            const imageArrayBuffer = await imageResponse.arrayBuffer();
+            const imageBuffer = Buffer.from(imageArrayBuffer);
+            console.log('✅ [PUBLISH] Image downloaded, compressing...');
+            
+            // Compress image to reduce file size (keep quality but reduce size)
+            const compressedImageBuffer = await sharp(imageBuffer)
+                .resize(800, 800, { 
+                    fit: 'inside', 
+                    withoutEnlargement: true 
+                })
+                .jpeg({ 
+                    quality: 85,
+                    progressive: true 
+                })
+                .toBuffer();
+            
+            console.log(`📊 Image compression: ${imageBuffer.length} bytes → ${compressedImageBuffer.length} bytes (${Math.round((1 - compressedImageBuffer.length/imageBuffer.length) * 100)}% reduction)`);
+            
+            const imageFileName = `${storyId}.jpg`;
+            imageFilePath = path.join(tempDir, imageFileName);
+            await fs.writeFile(imageFilePath, compressedImageBuffer);
+            console.log('✅ [PUBLISH] Image compressed and saved, uploading to Firebase...');
+            
+            imagePath = await uploadToFirebaseStorage(imageFilePath, `images/${imageFileName}`);
+            console.log('✅ [PUBLISH] Image uploaded to Firebase successfully');
+        } catch (imageError) {
+            console.error('❌ [PUBLISH] Image generation/processing failed:', imageError.message);
+            
+            // Check if it's a quota or rate limit error
+            if (imageError.message.includes('quota') || imageError.message.includes('billing') || imageError.message.includes('limit')) {
+                throw new Error('Image generation service temporarily unavailable due to quota limits. Please try again later.');
+            }
+            
+            // For other errors, we can still continue with a default image or skip image
+            console.log('⚠️ [PUBLISH] Continuing without image due to error');
+            imagePath = null; // Continue without image
+        }
 
         // Upload text file
         const textPath = await uploadToFirebaseStorage(textFilePath, `stories/${textFileName}`);
 
         // Update story with paths and published status
-        await storyService.update(story.id, {
+        const updateData = {
           audioPath: audioPath,
           textPath: textPath,
-          imagePath: imagePath,
           published: true
-        });
+        };
+        
+        // Only add imagePath if it was successfully generated
+        if (imagePath) {
+          updateData.imagePath = imagePath;
+        }
+        
+        await storyService.update(story.id, updateData);
 
         // Get the updated story
         const updatedStory = await storyService.findById(story.id);
@@ -834,7 +883,6 @@ exports.publishStory = async (req, res) => {
             const firestoreDoc = {
                 age: story.ageGroup || "6to8", // Default age group is now 6to8
                 audioPath: audioPath,
-                imagePath: imagePath,
                 language: languageDisplayMap[story.language] || "spanish", // Map language code to display name
                 level: getStoryLevel(), // Use appropriate level mapping
                 protagonista: extractProtagonist(story.content, story.title) || (story.childNames ? story.childNames.split(',')[0].trim() : "Personaje Principal"), // Use child names if available
@@ -846,6 +894,11 @@ exports.publishStory = async (req, res) => {
                 storyType: story.storyType || "original", // Use actual story type
                 storyLength: story.storyLength || "medium" // Use actual story length
             };
+            
+            // Only add imagePath if it was successfully generated
+            if (imagePath) {
+                firestoreDoc.imagePath = imagePath;
+            }
 
             // Add to Firestore collection
             const docRef = await db.collection('storyExamples').add(firestoreDoc);
@@ -860,7 +913,9 @@ exports.publishStory = async (req, res) => {
         // Clean up temp files
         try {
             await fs.unlink(textFilePath);
-            await fs.unlink(imageFilePath);
+            if (imageFilePath) {
+                await fs.unlink(imageFilePath);
+            }
             if (!story.audioPath) {
                 await fs.unlink(path.join(tempDir, `${storyId}.mp3`));
             }
@@ -868,16 +923,22 @@ exports.publishStory = async (req, res) => {
             console.warn('Warning: Error cleaning up temp files:', cleanupError);
         }
 
+        const responseStory = {
+            id: updatedStory.id,
+            title: updatedStory.title,
+            audioPath: updatedStory.audioPath,
+            textPath: updatedStory.textPath,
+            published: updatedStory.published
+        };
+        
+        // Only include imagePath if it exists
+        if (updatedStory.imagePath) {
+            responseStory.imagePath = updatedStory.imagePath;
+        }
+        
         res.json({
             success: true,
-            story: {
-                id: updatedStory.id,
-                title: updatedStory.title,
-                audioPath: updatedStory.audioPath,
-                textPath: updatedStory.textPath,
-                imagePath: updatedStory.imagePath,
-                published: updatedStory.published
-            }
+            story: responseStory
         });
 
     } catch (error) {
