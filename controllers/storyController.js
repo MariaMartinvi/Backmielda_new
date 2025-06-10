@@ -1124,15 +1124,23 @@ exports.testPublishProcess = async (req, res) => {
             return res.json({ success: false, testResults, failedAt: 'step4_tempDirectory' });
         }
         
-        // Step 5: Test TTS service
+        // Step 5: Test TTS service (only if story doesn't have audio)
         console.log('🎤 [STEP 5] Testing TTS service...');
         try {
-            const googleTtsService = require('../utils/googleTtsService');
-            if (!googleTtsService.convertTextToSpeech) {
-                throw new Error('TTS service not properly configured');
+            const story = await storyService.findById(storyId);
+            if (story.audioPath) {
+                // Story already has audio, skip TTS test
+                testResults.step5_ttsService = { success: true, data: { skipped: true, reason: 'Story already has audio' } };
+                console.log('✅ [STEP 5] TTS not needed - story already has audio');
+            } else {
+                // Story needs audio, test TTS service
+                const googleTtsService = require('../utils/googleTtsService');
+                if (!googleTtsService.synthesizeSpeech) {
+                    throw new Error('TTS service not properly configured');
+                }
+                testResults.step5_ttsService = { success: true, data: { serviceAvailable: true } };
+                console.log('✅ [STEP 5] TTS service accessible');
             }
-            testResults.step5_ttsService = { success: true, data: { serviceAvailable: true } };
-            console.log('✅ [STEP 5] TTS service accessible');
         } catch (error) {
             testResults.step5_ttsService = { success: false, error: error.message };
             console.log('❌ [STEP 5] TTS service error:', error.message);
