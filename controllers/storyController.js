@@ -768,11 +768,40 @@ exports.publishStory = async (req, res) => {
         // Generate and save audio if not already generated
         let audioPath = story.audioPath;
         if (!audioPath) {
+            // Determine the appropriate voice based on story language
+            const getVoiceForLanguage = (language) => {
+                switch (language) {
+                    case 'en':
+                        return 'female-english';
+                    case 'ca':
+                        return 'female-catalan';
+                    case 'gl':
+                        return 'female-galician';
+                    case 'eu':
+                        return 'female-basque';
+                    case 'de':
+                        return 'female-german';
+                    case 'it':
+                        return 'female-italian';
+                    case 'fr':
+                        return 'female-french';
+                    case 'pt':
+                        return 'female-portuguese-pt';
+                    case 'es':
+                    default:
+                        return 'female'; // Spanish voice (default)
+                }
+            };
+            
+            const voiceToUse = getVoiceForLanguage(story.language);
+            console.log(`🎤 [PUBLISH] Using voice "${voiceToUse}" for story language "${story.language}"`);
+            
             const audioContent = await googleTtsService.synthesizeSpeech(
                 story.content,
-                'female',
+                voiceToUse,
                 1.0,
-                true
+                true,
+                story.title
             );
             const audioFileName = `${storyId}.mp3`;
             const audioFilePath = path.join(tempDir, audioFileName);
