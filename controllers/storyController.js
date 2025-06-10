@@ -386,6 +386,9 @@ exports.generateAudio = async (req, res, next) => {
     const titleFromContent = contentLines[0];
     const contentWithoutTitle = contentLines.slice(2).join('\n'); // Skip title and empty line
     
+    console.log(`🎤 [DEBUG] Generating TTS for text: "${contentWithoutTitle.substring(0, 100)}..."`);
+    console.log(`🎤 [DEBUG] Voice: ${voiceId || 'female'}, Speed: ${speechRate || 1.0}`);
+    
     const audioData = await googleTtsService.synthesizeSpeech(
       contentWithoutTitle,  // Content without title
       voiceId || 'female',
@@ -394,13 +397,21 @@ exports.generateAudio = async (req, res, next) => {
       titleFromContent  // Pass the title separately for automatic pause detection
     );
     
+    console.log(`🎤 [DEBUG] TTS audio generated, size: ${audioData ? audioData.length : 'NULL'} bytes`);
+    
+    if (!audioData || audioData.length === 0) {
+      console.error('❌ [DEBUG] TTS audio is empty or null!');
+      throw new Error('TTS service returned empty audio data');
+    }
+    
     let finalAudioData;
     let usedMusicTrack = musicTrack;
     
     // Verificar explícitamente si musicTrack es exactamente "none"
     if (musicTrack === 'none') {
-      console.log('🔇 No background music requested, returning TTS audio only');
+      console.log('🔇 No background music requested, using TTS audio only');
       finalAudioData = audioData;
+      console.log(`🔇 [DEBUG] Final audio (no music) size: ${finalAudioData.length} bytes`);
     } else {
       // Use the specified track or random if not specified
       usedMusicTrack = musicTrack || 'random';
@@ -412,6 +423,12 @@ exports.generateAudio = async (req, res, next) => {
         usedMusicTrack,
         0.1  // Fixed volume at 10%
       );
+      console.log(`🎵 [DEBUG] Final audio (with music) size: ${finalAudioData ? finalAudioData.length : 'NULL'} bytes`);
+      
+      if (!finalAudioData || finalAudioData.length === 0) {
+        console.error('❌ [DEBUG] Audio mixing returned empty data! Falling back to TTS only');
+        finalAudioData = audioData;
+      }
     }
     
     // Save the generated audio data temporarily with the story (for use during publish)
@@ -425,13 +442,42 @@ exports.generateAudio = async (req, res, next) => {
     
     try {
       // Store the audio data temporarily (will be used during publish without regenerating)
-      await storyService.update(story.id, { 
-        lastAudioParams: audioParams,
-        tempAudioData: finalAudioData.toString('base64') // Store the generated audio temporarily
-      });
-      console.log('💾 [AUDIO] Saved audio data and parameters for future publish (no regeneration needed)');
+      const audioBase64 = finalAudioData.toString('base64');
+      console.log(`📊 [AUDIO] Audio data size: ${finalAudioData.length} bytes, base64 size: ${audioBase64.length} characters`);
+      
+      // Check if audio is too large for database storage (Firestore has 1MB limit per document)
+      if (audioBase64.length > 800000) { // Leave some margin (800KB)
+        console.log('⚠️ [AUDIO] Audio too large for database storage, saving to temporary file instead');
+        
+        // Save to temporary file in Firebase Storage
+        const tempDir = path.join(__dirname, '../temp');
+        await fs.mkdir(tempDir, { recursive: true });
+        
+        const tempAudioFileName = `temp_${storyId}_${Date.now()}.mp3`;
+        const tempAudioFilePath = path.join(tempDir, tempAudioFileName);
+        await fs.writeFile(tempAudioFilePath, finalAudioData);
+        
+        const tempAudioStoragePath = await uploadToFirebaseStorage(tempAudioFilePath, `temp-audio/${tempAudioFileName}`);
+        
+        // Clean up local temp file
+        await fs.unlink(tempAudioFilePath);
+        
+        await storyService.update(story.id, { 
+          lastAudioParams: audioParams,
+          tempAudioPath: tempAudioStoragePath // Store path instead of data
+        });
+        
+        console.log('💾 [AUDIO] Saved audio to temporary Firebase Storage for future publish');
+      } else {
+        await storyService.update(story.id, { 
+          lastAudioParams: audioParams,
+          tempAudioData: audioBase64
+        });
+        console.log('💾 [AUDIO] Saved audio data and parameters for future publish (no regeneration needed)');
+      }
     } catch (error) {
-      console.warn('⚠️ [AUDIO] Failed to save audio data:', error.message);
+      console.error('❌ [AUDIO] Failed to save audio data:', error.message);
+      console.error('❌ [AUDIO] Error details:', error);
     }
     
     // Return the audio data (temporary, for immediate playback only)
@@ -661,13 +707,34 @@ exports.healthCheck = async (req, res) => {
 // Function to upload file to Firebase Storage
 async function uploadToFirebaseStorage(localFilePath, storagePath) {
     try {
+        console.log(`📤 [UPLOAD] Starting upload: ${localFilePath} → ${storagePath}`);
+        
+        // Check if local file exists and has size
+        const localFileStats = await fs.stat(localFilePath);
+        console.log(`📊 [UPLOAD] Local file size: ${localFileStats.size} bytes`);
+        
+        if (localFileStats.size === 0) {
+            throw new Error(`Local file is empty: ${localFilePath}`);
+        }
+        
         const bucket = getFirebaseStorageBucket();
+        console.log(`📤 [UPLOAD] Uploading to bucket: ${bucket.name}`);
+        
         await bucket.upload(localFilePath, {
             destination: storagePath,
             metadata: {
                 cacheControl: 'public, max-age=31536000',
             },
         });
+        
+        // Verify the uploaded file
+        const uploadedFile = bucket.file(storagePath);
+        const [metadata] = await uploadedFile.getMetadata();
+        console.log(`✅ [UPLOAD] Uploaded successfully - Firebase Storage size: ${metadata.size} bytes`);
+        
+        if (parseInt(metadata.size) === 0) {
+            throw new Error(`Uploaded file is empty in Firebase Storage: ${storagePath}`);
+        }
         
         console.log(`✅ Uploaded to Firebase Storage: ${storagePath}`);
         return storagePath;
@@ -785,20 +852,63 @@ exports.publishStory = async (req, res) => {
         let audioPath = story.audioPath;
         if (!audioPath) {
             // Check if we have temporarily saved audio data from previous generation
-            if (story.tempAudioData) {
+            if (story.tempAudioData || story.tempAudioPath) {
                 console.log('🔄 [PUBLISH] Using previously generated audio data (no regeneration needed)');
                 console.log('🎯 [PUBLISH] Audio settings used:', story.lastAudioParams);
                 
-                // Use the temporarily saved audio data
-                const finalAudioContent = Buffer.from(story.tempAudioData, 'base64');
+                let finalAudioContent;
+                
+                if (story.tempAudioData) {
+                    // Audio data stored in database
+                    console.log(`📊 [PUBLISH] Using audio data from database, size: ${story.tempAudioData.length} characters`);
+                    finalAudioContent = Buffer.from(story.tempAudioData, 'base64');
+                    console.log(`📊 [PUBLISH] Converted audio buffer size: ${finalAudioContent.length} bytes`);
+                } else if (story.tempAudioPath) {
+                    // Audio file stored in temporary Firebase Storage
+                    console.log(`📊 [PUBLISH] Downloading audio from temporary storage: ${story.tempAudioPath}`);
+                    
+                    // Download from Firebase Storage
+                    const bucket = getFirebaseStorageBucket();
+                    const file = bucket.file(story.tempAudioPath.replace('https://storage.googleapis.com/' + bucket.name + '/', ''));
+                    const [audioBuffer] = await file.download();
+                    finalAudioContent = audioBuffer;
+                    console.log(`📊 [PUBLISH] Downloaded audio buffer size: ${finalAudioContent.length} bytes`);
+                    
+                    // Clean up temporary file from storage
+                    try {
+                        await file.delete();
+                        console.log('🗑️ [PUBLISH] Cleaned up temporary audio file from storage');
+                    } catch (deleteError) {
+                        console.warn('⚠️ [PUBLISH] Failed to clean up temporary audio file:', deleteError.message);
+                    }
+                }
+                
+                if (finalAudioContent.length === 0) {
+                    console.error('❌ [PUBLISH] Audio buffer is empty! Something went wrong with data conversion');
+                    throw new Error('Audio data is corrupted or empty');
+                }
+                
                 const audioFileName = `${storyId}.mp3`;
                 const audioFilePath = path.join(tempDir, audioFileName);
                 await fs.writeFile(audioFilePath, finalAudioContent);
+                console.log(`📊 [PUBLISH] Audio file written to: ${audioFilePath}, size: ${finalAudioContent.length} bytes`);
+                
+                // Verify the file was written correctly
+                const fileStats = await fs.stat(audioFilePath);
+                console.log(`📊 [PUBLISH] File stats - size: ${fileStats.size} bytes, created: ${fileStats.birthtime}`);
+                
+                if (fileStats.size === 0) {
+                    console.error('❌ [PUBLISH] Written audio file is empty!');
+                    throw new Error('Audio file written to disk is empty');
+                }
+                
                 audioPath = await uploadToFirebaseStorage(audioFilePath, `audio/${audioFileName}`);
+                console.log(`✅ [PUBLISH] Audio uploaded to Firebase Storage: ${audioPath}`);
                 
                 // Clean up temporary audio data from database (no longer needed)
                 await storyService.update(story.id, { 
-                    tempAudioData: null 
+                    tempAudioData: null,
+                    tempAudioPath: null
                 });
                 
                 console.log('✅ [PUBLISH] Previously generated audio uploaded to Firebase Storage');
