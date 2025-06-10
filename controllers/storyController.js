@@ -414,17 +414,33 @@ exports.generateAudio = async (req, res, next) => {
       );
     }
     
-    // Return the audio data
+    // Save the generated audio data temporarily with the story (for use during publish)
+    const audioParams = {
+      voiceId,
+      speechRate,
+      musicTrack: usedMusicTrack,
+      musicVolume: musicTrack === 'none' ? 0 : 0.1,
+      lastGenerated: new Date()
+    };
+    
+    try {
+      // Store the audio data temporarily (will be used during publish without regenerating)
+      await storyService.update(story.id, { 
+        lastAudioParams: audioParams,
+        tempAudioData: finalAudioData.toString('base64') // Store the generated audio temporarily
+      });
+      console.log('💾 [AUDIO] Saved audio data and parameters for future publish (no regeneration needed)');
+    } catch (error) {
+      console.warn('⚠️ [AUDIO] Failed to save audio data:', error.message);
+    }
+    
+    // Return the audio data (temporary, for immediate playback only)
+    console.log('🎵 [AUDIO] Returning temporary audio for immediate playback');
     res.status(200).json({
       success: true,
       audioUrl: `data:audio/mp3;base64,${finalAudioData}`,
       format: 'mp3',
-      parameters: {
-        voiceId,
-        speechRate,
-        musicTrack: usedMusicTrack, // Return the track that was used
-        musicVolume: musicTrack === 'none' ? 0 : 0.1
-      },
+      parameters: audioParams,
       audioGenerations: story.audioGenerations
     });
   } catch (error) {
@@ -768,45 +784,102 @@ exports.publishStory = async (req, res) => {
         // Generate and save audio if not already generated
         let audioPath = story.audioPath;
         if (!audioPath) {
-            // Determine the appropriate voice based on story language
-            const getVoiceForLanguage = (language) => {
-                switch (language) {
-                    case 'en':
-                        return 'female-english';
-                    case 'ca':
-                        return 'female-catalan';
-                    case 'gl':
-                        return 'female-galician';
-                    case 'eu':
-                        return 'female-basque';
-                    case 'de':
-                        return 'female-german';
-                    case 'it':
-                        return 'female-italian';
-                    case 'fr':
-                        return 'female-french';
-                    case 'pt':
-                        return 'female-portuguese-pt';
-                    case 'es':
-                    default:
-                        return 'female'; // Spanish voice (default)
+            // Check if we have temporarily saved audio data from previous generation
+            if (story.tempAudioData) {
+                console.log('🔄 [PUBLISH] Using previously generated audio data (no regeneration needed)');
+                console.log('🎯 [PUBLISH] Audio settings used:', story.lastAudioParams);
+                
+                // Use the temporarily saved audio data
+                const finalAudioContent = Buffer.from(story.tempAudioData, 'base64');
+                const audioFileName = `${storyId}.mp3`;
+                const audioFilePath = path.join(tempDir, audioFileName);
+                await fs.writeFile(audioFilePath, finalAudioContent);
+                audioPath = await uploadToFirebaseStorage(audioFilePath, `audio/${audioFileName}`);
+                
+                // Clean up temporary audio data from database (no longer needed)
+                await storyService.update(story.id, { 
+                    tempAudioData: null 
+                });
+                
+                console.log('✅ [PUBLISH] Previously generated audio uploaded to Firebase Storage');
+            } else {
+                console.log('🎤 [PUBLISH] No existing or temporary audio found, generating new audio...');
+                
+                let voiceToUse, speechRate, musicTrack, musicVolume;
+                
+                // Check if user previously generated audio with specific settings
+                if (story.lastAudioParams) {
+                    console.log('🎯 [PUBLISH] Using previously chosen audio settings:', story.lastAudioParams);
+                    voiceToUse = story.lastAudioParams.voiceId;
+                    speechRate = story.lastAudioParams.speechRate || 1.0;
+                    musicTrack = story.lastAudioParams.musicTrack;
+                    musicVolume = story.lastAudioParams.musicVolume || 0.1;
+                } else {
+                    console.log('🎤 [PUBLISH] No previous audio settings, using defaults based on story language');
+                    // Determine the appropriate voice based on story language
+                    const getVoiceForLanguage = (language) => {
+                        switch (language) {
+                            case 'en':
+                                return 'female-english';
+                            case 'ca':
+                                return 'female-catalan';
+                            case 'gl':
+                                return 'female-galician';
+                            case 'eu':
+                                return 'female-basque';
+                            case 'de':
+                                return 'female-german';
+                            case 'it':
+                                return 'female-italian';
+                            case 'fr':
+                                return 'female-french';
+                            case 'pt':
+                                return 'female-portuguese-pt';
+                            case 'es':
+                            default:
+                                return 'female'; // Spanish voice (default)
+                        }
+                    };
+                    
+                    voiceToUse = getVoiceForLanguage(story.language);
+                    speechRate = 1.0;
+                    musicTrack = 'random';
+                    musicVolume = 0.1;
                 }
-            };
-            
-            const voiceToUse = getVoiceForLanguage(story.language);
-            console.log(`🎤 [PUBLISH] Using voice "${voiceToUse}" for story language "${story.language}"`);
-            
-            const audioContent = await googleTtsService.synthesizeSpeech(
-                story.content,
-                voiceToUse,
-                1.0,
-                true,
-                story.title
-            );
-            const audioFileName = `${storyId}.mp3`;
-            const audioFilePath = path.join(tempDir, audioFileName);
-            await fs.writeFile(audioFilePath, audioContent);
-            audioPath = await uploadToFirebaseStorage(audioFilePath, `audio/${audioFileName}`);
+                
+                console.log(`🎤 [PUBLISH] Generating audio with: voice="${voiceToUse}", speed=${speechRate}, music="${musicTrack}"`);
+                
+                // Generate TTS audio
+                const ttsAudioContent = await googleTtsService.synthesizeSpeech(
+                    story.content,
+                    voiceToUse,
+                    speechRate,
+                    true,
+                    story.title
+                );
+                
+                // Mix with background music if requested
+                let finalAudioContent;
+                if (musicTrack === 'none') {
+                    console.log('🔇 [PUBLISH] No background music requested');
+                    finalAudioContent = ttsAudioContent;
+                } else {
+                    console.log(`🎵 [PUBLISH] Mixing with background music: ${musicTrack}`);
+                    finalAudioContent = await mixAudioWithBackground(
+                        ttsAudioContent,
+                        musicTrack,
+                        musicVolume
+                    );
+                }
+                
+                const audioFileName = `${storyId}.mp3`;
+                const audioFilePath = path.join(tempDir, audioFileName);
+                await fs.writeFile(audioFilePath, finalAudioContent);
+                audioPath = await uploadToFirebaseStorage(audioFilePath, `audio/${audioFileName}`);
+                console.log('✅ [PUBLISH] Audio generated and uploaded to Firebase with user\'s chosen settings');
+            }
+        } else {
+            console.log('✅ [PUBLISH] Using existing audio from Firebase:', audioPath);
         }
 
         // Generate and save image with retry logic
