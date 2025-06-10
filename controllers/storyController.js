@@ -1097,7 +1097,7 @@ exports.testPublishProcess = async (req, res) => {
         // Step 3: Test OpenAI image generation (without actually generating)
         console.log('🎨 [STEP 3] Testing OpenAI access...');
         try {
-            const openaiService = require('../services/openaiService');
+            const openaiService = require('../utils/openaiService');
             // Just check if the service is properly configured
             if (!openaiService.generateImage) {
                 throw new Error('OpenAI service not properly configured');
