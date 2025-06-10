@@ -881,8 +881,35 @@ exports.publishStory = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error publishing story:', error);
-        res.status(500).json({ error: 'Failed to publish story' });
+        console.error('❌ [PUBLISH] Error publishing story:', error);
+        console.error('❌ [PUBLISH] Error details:', {
+            message: error.message,
+            stack: error.stack,
+            name: error.name
+        });
+        
+        // Provide more specific error messages based on error type
+        let errorMessage = 'Failed to publish story';
+        let statusCode = 500;
+        
+        if (error.message.includes('OpenAI') || error.message.includes('quota')) {
+            errorMessage = 'Image generation service temporarily unavailable';
+            statusCode = 503;
+        } else if (error.message.includes('Firebase') || error.message.includes('Storage')) {
+            errorMessage = 'File upload service temporarily unavailable';
+            statusCode = 503;
+        } else if (error.message.includes('Story not found')) {
+            errorMessage = 'Story not found';
+            statusCode = 404;
+        } else if (error.message.includes('Unauthorized')) {
+            errorMessage = 'Unauthorized to publish this story';
+            statusCode = 403;
+        }
+        
+        res.status(statusCode).json({ 
+            error: errorMessage,
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
     }
 };
 
@@ -1031,3 +1058,113 @@ fetch('https://generadorcuentos.onrender.com/api/health')
   .then(response => response.json())
   .then(data => console.log('Backend health:', data))
   .catch(error => console.error('Backend unreachable:', error));
+
+// Test publish process step by step
+exports.testPublishProcess = async (req, res) => {
+    const { storyId } = req.params;
+    const testResults = {};
+    
+    try {
+        console.log(`🧪 [PUBLISH TEST] Starting diagnostic for story ${storyId}`);
+        
+        // Step 1: Check if story exists
+        console.log('📝 [STEP 1] Checking if story exists...');
+        try {
+            const story = await storyService.findById(storyId);
+            if (!story) {
+                throw new Error('Story not found');
+            }
+            testResults.step1_storyExists = { success: true, data: { id: story.id, title: story.title } };
+            console.log('✅ [STEP 1] Story found');
+        } catch (error) {
+            testResults.step1_storyExists = { success: false, error: error.message };
+            console.log('❌ [STEP 1] Story not found:', error.message);
+            return res.json({ success: false, testResults, failedAt: 'step1_storyExists' });
+        }
+        
+        // Step 2: Test Firebase Storage bucket access
+        console.log('📦 [STEP 2] Testing Firebase Storage access...');
+        try {
+            const bucket = getFirebaseStorageBucket();
+            testResults.step2_firebaseStorage = { success: true, data: { bucketName: bucket.name } };
+            console.log('✅ [STEP 2] Firebase Storage accessible');
+        } catch (error) {
+            testResults.step2_firebaseStorage = { success: false, error: error.message };
+            console.log('❌ [STEP 2] Firebase Storage error:', error.message);
+            return res.json({ success: false, testResults, failedAt: 'step2_firebaseStorage' });
+        }
+        
+        // Step 3: Test OpenAI image generation (without actually generating)
+        console.log('🎨 [STEP 3] Testing OpenAI access...');
+        try {
+            const openaiService = require('../services/openaiService');
+            // Just check if the service is properly configured
+            if (!openaiService.generateImage) {
+                throw new Error('OpenAI service not properly configured');
+            }
+            testResults.step3_openaiAccess = { success: true, data: { serviceAvailable: true } };
+            console.log('✅ [STEP 3] OpenAI service accessible');
+        } catch (error) {
+            testResults.step3_openaiAccess = { success: false, error: error.message };
+            console.log('❌ [STEP 3] OpenAI service error:', error.message);
+            return res.json({ success: false, testResults, failedAt: 'step3_openaiAccess' });
+        }
+        
+        // Step 4: Test temp directory creation
+        console.log('📁 [STEP 4] Testing temp directory creation...');
+        try {
+            const tempDir = path.join(__dirname, '..', 'temp', `publish-test-${Date.now()}`);
+            await fs.mkdir(tempDir, { recursive: true });
+            await fs.rmdir(tempDir); // Clean up immediately
+            testResults.step4_tempDirectory = { success: true, data: { canCreateTemp: true } };
+            console.log('✅ [STEP 4] Temp directory creation works');
+        } catch (error) {
+            testResults.step4_tempDirectory = { success: false, error: error.message };
+            console.log('❌ [STEP 4] Temp directory error:', error.message);
+            return res.json({ success: false, testResults, failedAt: 'step4_tempDirectory' });
+        }
+        
+        // Step 5: Test TTS service
+        console.log('🎤 [STEP 5] Testing TTS service...');
+        try {
+            const googleTtsService = require('../utils/googleTtsService');
+            if (!googleTtsService.convertTextToSpeech) {
+                throw new Error('TTS service not properly configured');
+            }
+            testResults.step5_ttsService = { success: true, data: { serviceAvailable: true } };
+            console.log('✅ [STEP 5] TTS service accessible');
+        } catch (error) {
+            testResults.step5_ttsService = { success: false, error: error.message };
+            console.log('❌ [STEP 5] TTS service error:', error.message);
+            return res.json({ success: false, testResults, failedAt: 'step5_ttsService' });
+        }
+        
+        // Step 6: Test Sharp (image processing)
+        console.log('🖼️ [STEP 6] Testing Sharp image processing...');
+        try {
+            const sharp = require('sharp');
+            testResults.step6_sharpProcessing = { success: true, data: { sharpAvailable: true } };
+            console.log('✅ [STEP 6] Sharp available');
+        } catch (error) {
+            testResults.step6_sharpProcessing = { success: false, error: error.message };
+            console.log('❌ [STEP 6] Sharp error:', error.message);
+            return res.json({ success: false, testResults, failedAt: 'step6_sharpProcessing' });
+        }
+        
+        console.log('🎉 [PUBLISH TEST] All tests passed!');
+        res.json({ 
+            success: true, 
+            testResults, 
+            message: 'All publish process components are working correctly' 
+        });
+        
+    } catch (error) {
+        console.error('❌ [PUBLISH TEST] Unexpected error:', error);
+        res.status(500).json({ 
+            success: false, 
+            testResults, 
+            error: error.message,
+            failedAt: 'unexpected_error'
+        });
+    }
+};

@@ -38,13 +38,17 @@ router.post('/generate', auth, (req, res, next) => {
   storyController.generateStory(req, res, next);
 });
 
-// Generate audio for a story
-router.post('/:storyId/audio', auth, (req, res, next) => {
-  storyController.generateAudio(req, res, next);
-});
+// Get story by ID
+router.get('/:storyId', auth, storyController.getStoryById);
 
 // Publish story
 router.post('/:storyId/publish', auth, storyController.publishStory);
+
+// NEW: Diagnostic endpoint for publish process
+router.post('/:storyId/publish-test', auth, storyController.testPublishProcess);
+
+// Generate audio for a story
+router.post('/:storyId/audio', storyController.generateAudio);
 
 // OpenAI API Health check
 router.get('/health', storyController.healthCheck);
@@ -120,8 +124,5 @@ router.post('/:storyId/rate', auth, storyController.rateStory);
 
 // Get story ratings
 router.get('/:storyId/ratings', storyController.getStoryRatings);
-
-// Get story by ID
-router.get('/:id', storyController.getStoryById);
 
 module.exports = router; 
