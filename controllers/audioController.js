@@ -6,15 +6,15 @@ exports.generateAudio = async (req, res, next) => {
   try {
     const { text, voiceId, speechRate, musicTrack, musicVolume, title } = req.body;
     
-    console.log('Audio generation request:', { 
-      textLength: text ? text.length : 0, 
-      voiceId, 
-      speechRate, 
-      musicTrack, 
-      musicVolume,
-      title: title || 'No title provided',
-      pausesMode: 'INTELLIGENT_AUTO'
-    });
+    console.log('🎤 === AUDIO GENERATION REQUEST ===');
+    console.log('📝 Text length:', text ? text.length : 0);
+    console.log('🎙️ VoiceId received:', voiceId);
+    console.log('⚡ Speech rate:', speechRate);
+    console.log('🎵 Music track:', musicTrack);
+    console.log('🔊 Music volume:', musicVolume);
+    console.log('📖 Title:', title || 'No title provided');
+    console.log('⏸️ Pauses mode: INTELLIGENT_AUTO');
+    console.log('=====================================');
     
     // Validate request
     if (!text) {

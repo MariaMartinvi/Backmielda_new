@@ -29,7 +29,13 @@ const BACKGROUND_MUSIC_TRACKS = {
   'piano': 'lullaby-sleep-piano-music-285599.mp3',
   'magic-box': 'magic-music-box-333328.mp3',
   'forest': 'forest-lullaby-110624.mp3',
-  'journey': 'magical-journey-150608.mp3'
+  'journey': 'magical-journey-150608.mp3',
+  // Additional tracks found in directory
+  'quiet-sleep': 'quiet-sleep-2-263254.mp3',
+  'meditation': 'meditation-relaxing-music-320396.mp3',
+  'calm': 'please-calm-my-mind-125566.mp3',
+  'inventors': 'tiny-inventors_57sec-329139.mp3',
+  'just-relax': 'just-relax-11157.mp3'
 };
 
 /**
@@ -72,6 +78,30 @@ async function checkFFmpegAvailability() {
       console.log('🏭 Production environment detected - FFmpeg may not be installed');
       console.log('💡 This means audio will be generated without background music');
       console.log('💡 To enable background music, install FFmpeg on the server');
+      console.log('🔧 Checking if FFmpeg installation script was run...');
+      
+      // Try alternative paths in case FFmpeg is installed but not in PATH
+      const alternativePaths = [
+        '/usr/bin/ffmpeg',
+        '/usr/local/bin/ffmpeg',
+        '/snap/bin/ffmpeg'
+      ];
+      
+      for (const altPath of alternativePaths) {
+        try {
+          const { stdout: altStdout } = await execPromise(`"${altPath}" -version`, { timeout: 5000 });
+          if (altStdout.includes('ffmpeg version')) {
+            console.log(`✅ Found FFmpeg at alternative path: ${altPath}`);
+            console.log('🔧 Updating FFmpeg path configuration...');
+            FFMPEG_PATHS.ffmpeg = altPath;
+            FFMPEG_PATHS.ffprobe = altPath.replace('ffmpeg', 'ffprobe');
+            ffmpegAvailable = true;
+            return true;
+          }
+        } catch (altError) {
+          console.log(`❌ FFmpeg not found at ${altPath}`);
+        }
+      }
     }
     
     console.log('⚠️ Audio mixing will be disabled - returning original TTS audio only');

@@ -19,10 +19,10 @@ function getGoogleVoiceName(voiceId) {
     // Español España
     case 'male':
     case 'male-spanish':
-      return 'es-ES-Neural2-F'; // MALE voice
+      return 'es-ES-Neural2-B'; // MALE voice
     case 'female':
     case 'female-spanish':
-      return 'es-ES-Neural2-E'; // FEMALE voice
+      return 'es-ES-Neural2-A'; // FEMALE voice
     
     // Español Latinoamérica
     case 'female-latam':
@@ -384,9 +384,12 @@ async function synthesizeSingleChunk(text, voiceId = 'female', speed = 1.0, useI
   const voiceName = getGoogleVoiceName(voiceId);
   const languageCode = getLanguageCode(voiceId);
   
-  console.log(`🎤 Usando voz: ${voiceName}`);
-  console.log(`🌍 Código de idioma: ${languageCode}`);
-  console.log(`⚡ Velocidad: ${speed}x`);
+  console.log(`🎤 === VOICE MAPPING DEBUG ===`);
+  console.log(`🎯 VoiceId input: "${voiceId}"`);
+  console.log(`🎤 Google voice name: "${voiceName}"`);
+  console.log(`🌍 Language code: "${languageCode}"`);
+  console.log(`⚡ Speed: ${speed}x`);
+  console.log(`===========================`);
   console.log('📝 Tipo de entrada: SSML (pausas inteligentes automáticas)');
   console.log('🔑 Autenticación: API Key');
   
