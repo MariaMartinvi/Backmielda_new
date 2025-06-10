@@ -588,20 +588,33 @@ async function getStoriesRemaining(user) {
 
 exports.getStoryById = async (req, res, next) => {
   try {
-    const { id } = req.params;
-    const story = await storyService.findById(id);
+    console.log('🔍 [GET-STORY-BY-ID] Route params:', req.params);
+    const { storyId } = req.params;
+    
+    if (!storyId) {
+      console.log('❌ [GET-STORY-BY-ID] No storyId provided');
+      return res.status(400).json({ error: 'Story ID is required' });
+    }
+    
+    console.log('🔍 [GET-STORY-BY-ID] Looking for story:', storyId);
+    const story = await storyService.findById(storyId);
     
     if (!story) {
+      console.log('❌ [GET-STORY-BY-ID] Story not found:', storyId);
       return res.status(404).json({ error: 'Story not found' });
     }
 
+    console.log('✅ [GET-STORY-BY-ID] Story found:', story.title);
+    const storyObject = story.toObject();
+    console.log('📤 [GET-STORY-BY-ID] Sending response with story data');
+    
     res.json({
       success: true,
-      story: story.toObject()
+      story: storyObject
     });
   } catch (error) {
-    console.error('Error fetching story by ID:', error);
-    res.status(500).json({ error: 'Error fetching story' });
+    console.error('❌ [GET-STORY-BY-ID] Error fetching story:', error);
+    res.status(500).json({ error: 'Error fetching story', details: error.message });
   }
 };
 
