@@ -38,18 +38,6 @@ router.post('/generate', auth, (req, res, next) => {
   storyController.generateStory(req, res, next);
 });
 
-// Get story by ID
-router.get('/:storyId', auth, storyController.getStoryById);
-
-// Publish story
-router.post('/:storyId/publish', auth, storyController.publishStory);
-
-// NEW: Diagnostic endpoint for publish process
-router.post('/:storyId/publish-test', auth, storyController.testPublishProcess);
-
-// Generate audio for a story
-router.post('/:storyId/audio', storyController.generateAudio);
-
 // OpenAI API Health check
 router.get('/health', storyController.healthCheck);
 
@@ -112,6 +100,18 @@ router.get('/my-stories', auth, (req, res, next) => {
   // Call the controller
   storyController.getMyStories(req, res, next);
 });
+
+// Get story by ID
+router.get('/:storyId', auth, storyController.getStoryById);
+
+// Publish story
+router.post('/:storyId/publish', auth, storyController.publishStory);
+
+// NEW: Diagnostic endpoint for publish process
+router.post('/:storyId/publish-test', auth, storyController.testPublishProcess);
+
+// Generate audio for a story
+router.post('/:storyId/audio', storyController.generateAudio);
 
 // Get stories for a specific user (admin or owner only)
 router.get('/user/:userId', auth, storyController.getUserStories);
