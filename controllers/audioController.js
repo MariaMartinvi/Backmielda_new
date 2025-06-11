@@ -34,7 +34,7 @@ exports.generateAudio = async (req, res, next) => {
     const audioData = await googleTtsService.synthesizeSpeech(
       text,
       voiceId || 'female',
-      speechRate || 1.0,
+      speechRate || 0.8,  // Changed default from 1.0 to 0.8 (new normal speed)
       true,  // useIntelligentPauses
       title  // Pass the title for automatic pause detection
     );

@@ -400,7 +400,7 @@ exports.generateAudio = async (req, res, next) => {
     const audioData = await googleTtsService.synthesizeSpeech(
       contentWithoutTitle,  // Content without title
       voiceId || 'female',
-      speechRate || 1.0,
+      speechRate || 0.8,  // Changed default from 1.0 to 0.8 (new normal speed)
       true,  // useIntelligentPauses
       titleFromContent  // Pass the title separately for automatic pause detection
     );
@@ -1042,7 +1042,7 @@ exports.publishStory = async (req, res) => {
                 if (story.lastAudioParams) {
                     console.log('🎯 [PUBLISH] Using previously chosen audio settings:', story.lastAudioParams);
                     voiceToUse = story.lastAudioParams.voiceId;
-                    speechRate = story.lastAudioParams.speechRate || 1.0;
+                    speechRate = story.lastAudioParams.speechRate || 0.8;
                     musicTrack = story.lastAudioParams.musicTrack;
                     musicVolume = story.lastAudioParams.musicVolume || 0.1;
                 } else {
@@ -1075,7 +1075,7 @@ exports.publishStory = async (req, res) => {
                     };
                     
                     voiceToUse = getVoiceForLanguage(story.language);
-                    speechRate = 1.0;
+                    speechRate = 0.8;  // Changed default from 1.0 to 0.8 (new normal speed)
                     musicTrack = 'random';
                     musicVolume = 0.1;
                     

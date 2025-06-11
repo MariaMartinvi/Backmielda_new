@@ -179,6 +179,32 @@ if (!admin.apps.length) {
       throw new Error('Failed to initialize Firebase Admin - all initialization methods exhausted');
     }
 
+    // Configure App Name for Firebase Auth emails asynchronously (don't block startup)
+    setImmediate(async () => {
+      try {
+        console.log('🏷️ Configuring app name for Firebase Auth emails...');
+        
+        // Set project display name
+        const projectConfig = {
+          displayName: 'AudioGretel'
+        };
+        
+        // This will affect email templates
+        await admin.projectManagement().updateProject(requiredEnvVars.projectId, projectConfig);
+        console.log('✅ App name configured for Firebase emails: AudioGretel');
+        
+      } catch (nameError) {
+        console.warn('⚠️ Could not configure app name automatically:', nameError.message);
+        console.log('💡 Please configure app name manually in Firebase Console:');
+        console.log('   1. Go to https://console.firebase.google.com/');
+        console.log('   2. Select your project');
+        console.log('   3. Go to Project Settings > General');
+        console.log('   4. Change "Public-facing name" to "AudioGretel"');
+        console.log('   5. Go to Authentication > Templates');
+        console.log('   6. Update email templates to use "AudioGretel" instead of %APP_NAME%');
+      }
+    });
+
     // Verify Firestore connection asynchronously (don't block startup)
     setImmediate(async () => {
       try {
