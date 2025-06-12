@@ -9,7 +9,7 @@ const { constructPrompt, extractTitle } = require('../utils/helpers');
 const { admin, db } = require('../config/firebase');
 const fs = require('fs').promises;
 const path = require('path');
-const sharp = require('sharp');
+// const sharp = require('sharp'); // No longer needed with Fal.ai optimized images
 console.log("OpenAI API Key:", process.env.OPENAI_API_KEY ? "Configurada (primeros caracteres: " + process.env.OPENAI_API_KEY.substring(0, 5) + "...)" : "No configurada");
 
 // Use Firebase instances from config
@@ -1135,26 +1135,13 @@ exports.publishStory = async (req, res) => {
             
             const imageArrayBuffer = await imageResponse.arrayBuffer();
             const imageBuffer = Buffer.from(imageArrayBuffer);
-            console.log('✅ [PUBLISH] Image downloaded, compressing...');
+            console.log('✅ [PUBLISH] Image downloaded, saving directly...');
             
-            // Compress image to reduce file size (keep quality but reduce size)
-            const compressedImageBuffer = await sharp(imageBuffer)
-                .resize(800, 800, { 
-                    fit: 'inside', 
-                    withoutEnlargement: true 
-                })
-                .jpeg({ 
-                    quality: 85,
-                    progressive: true 
-                })
-                .toBuffer();
-            
-            console.log(`📊 Image compression: ${imageBuffer.length} bytes → ${compressedImageBuffer.length} bytes (${Math.round((1 - compressedImageBuffer.length/imageBuffer.length) * 100)}% reduction)`);
-            
+            // Since Fal.ai already generates optimized images, save directly without compression
             const imageFileName = `${storyId}.jpg`;
             imageFilePath = path.join(tempDir, imageFileName);
-            await fs.writeFile(imageFilePath, compressedImageBuffer);
-            console.log('✅ [PUBLISH] Image compressed and saved, uploading to Firebase...');
+            await fs.writeFile(imageFilePath, imageBuffer);
+            console.log('✅ [PUBLISH] Image saved, uploading to Firebase...');
             
             imagePath = await uploadToFirebaseStorage(imageFilePath, `images/${imageFileName}`);
             console.log('✅ [PUBLISH] Image uploaded to Firebase successfully');

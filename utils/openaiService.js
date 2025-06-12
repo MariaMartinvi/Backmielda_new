@@ -368,28 +368,70 @@ exports.checkOpenAIStatus = async () => {
   }
 };
 
-// Generate image with DALL-E
+// Generate image with Fal.ai (faster and smaller images)
 exports.generateImage = async (prompt) => {
   try {
-    console.log('🎨 Generating image with DALL-E for prompt:', prompt);
+    console.log('🎨 Generating image with Fal.ai for prompt:', prompt);
     
-    if (!process.env.OPENAI_API_KEY) {
-      throw new Error('OpenAI API key is not configured');
+    if (!process.env.FAL_API_KEY) {
+      throw new Error('Fal.ai API key is not configured');
     }
 
-    const response = await openai.images.generate({
-      model: "dall-e-3",
-      prompt: prompt,
-      n: 1,
-      size: "1024x1024", // Smaller size for web optimization
-      quality: "standard", // Standard quality instead of HD
-      style: "vivid"
+    // Enhanced prompt for better story illustrations
+    const enhancedPrompt = `Children's book illustration style, warm and friendly, colorful, safe for kids: ${prompt}`;
+
+    const response = await axios.post('https://fal.run/fal-ai/fast-sdxl', {
+      prompt: enhancedPrompt,
+      image_size: "square_hd", // 1024x1024 but optimized
+      num_inference_steps: 25, // Good balance of quality/speed
+      guidance_scale: 7.5,
+      num_images: 1,
+      enable_safety_checker: true,
+      sync_mode: true // Wait for completion
+    }, {
+      headers: {
+        'Authorization': `Key ${process.env.FAL_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 30000 // 30 seconds timeout
     });
 
-    console.log('✅ Image generated successfully');
-    return response;
+    console.log('✅ Image generated successfully with Fal.ai');
+    
+    // Return in DALL-E compatible format
+    return {
+      data: [{
+        url: response.data.images[0].url
+      }]
+    };
   } catch (error) {
-    console.error('❌ Error generating image:', error);
+    console.error('❌ Error generating image with Fal.ai:', error);
+    
+    // Fallback to placeholder for development
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔄 Using child-friendly placeholder for development');
+      
+      // Create a simple, child-friendly SVG placeholder
+      const colors = ['#FFB6C1', '#87CEEB', '#98FB98', '#F0E68C', '#DDA0DD'];
+      const randomColor = colors[Math.floor(Math.random() * colors.length)];
+      
+      const svg = `<svg width="512" height="512" xmlns="http://www.w3.org/2000/svg">
+        <rect width="512" height="512" fill="${randomColor}"/>
+        <circle cx="256" cy="200" r="80" fill="white" opacity="0.8"/>
+        <text x="256" y="210" text-anchor="middle" font-family="Arial" font-size="48" fill="#333">📚</text>
+        <text x="256" y="350" text-anchor="middle" font-family="Arial" font-size="24" fill="#333" font-weight="bold">Story Image</text>
+        <text x="256" y="380" text-anchor="middle" font-family="Arial" font-size="16" fill="#666">Generated for Kids</text>
+      </svg>`;
+      
+      const base64Svg = `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
+      
+      return {
+        data: [{
+          url: base64Svg
+        }]
+      };
+    }
+    
     throw error;
   }
 };
