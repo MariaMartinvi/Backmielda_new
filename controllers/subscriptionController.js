@@ -1,26 +1,32 @@
-const User = require('../models/User');
+const { db } = require('../config/firebase');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 exports.cancelSubscription = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
+    // Get user from Firestore
+    const userRef = db.collection('users').doc(req.user.uid);
+    const userDoc = await userRef.get();
     
-    if (!user) {
+    if (!userDoc.exists) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    if (!user.stripeSubscriptionId) {
+    const userData = userDoc.data();
+
+    if (!userData.stripeSubscriptionId) {
       return res.status(400).json({ message: 'No active subscription found' });
     }
 
     // Cancel the subscription in Stripe
-    const subscription = await stripe.subscriptions.cancel(user.stripeSubscriptionId);
+    const subscription = await stripe.subscriptions.cancel(userData.stripeSubscriptionId);
 
-    // Update user in database
-    user.subscriptionStatus = 'cancelled';
-    user.isPremium = false;
-    user.stripeSubscriptionId = null;
-    await user.save();
+    // Update user in Firestore
+    await userRef.update({
+      subscriptionStatus: 'cancelled',
+      isPremium: false,
+      stripeSubscriptionId: null,
+      updatedAt: new Date()
+    });
 
     res.json({ 
       success: true, 

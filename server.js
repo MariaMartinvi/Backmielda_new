@@ -26,7 +26,7 @@ console.log('STRIPE_SECRET_KEY length:', process.env.STRIPE_SECRET_KEY ? process
 console.log('STRIPE_SECRET_KEY prefix:', process.env.STRIPE_SECRET_KEY ? process.env.STRIPE_SECRET_KEY.substring(0, 7) : 'NOT SET');
 console.log('STRIPE_PRICE_ID:', process.env.STRIPE_PRICE_ID || 'NOT SET');
 console.log('FRONTEND_URL:', process.env.FRONTEND_URL || 'NOT SET');
-console.log('MONGODB_URI:', process.env.MONGODB_URI ? 'Set' : 'NOT SET');
+// MongoDB removed - using Firebase/Firestore only
 console.log('JWT_SECRET:', process.env.JWT_SECRET ? 'Set' : 'NOT SET');
 console.log('GOOGLE_TTS_API_KEY:', process.env.GOOGLE_TTS_API_KEY ? `Set (${process.env.GOOGLE_TTS_API_KEY.substring(0, 10)}...)` : 'NOT SET');
 

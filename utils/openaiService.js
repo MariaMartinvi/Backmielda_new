@@ -7,7 +7,7 @@ const { constructPrompt, extractTitle } = require('./helpers');
 
 // Initialize OpenAI client
 const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY
+    apiKey: process.env.OPENAI_API_KEY || 'sk-mock-api-key-for-development-only'
 });
 
 // Function to log critical errors that require admin attention
