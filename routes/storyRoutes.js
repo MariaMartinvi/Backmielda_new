@@ -38,6 +38,31 @@ router.post('/generate', auth, (req, res, next) => {
   storyController.generateStory(req, res, next);
 });
 
+// 📡 SSE endpoint for streaming story generation
+router.get('/stream', (req, res, next) => {
+  console.log('📡 [SSE] Stream endpoint hit:', req.query?.storyId || 'No storyId provided');
+  
+  // Verificar origen para SSE también
+  const origin = req.headers.origin;
+  console.log('📡 [SSE] Request origin:', origin);
+  
+  const allowedOrigins = [
+    'http://localhost:3000',
+    'https://www.audiogretel.com',
+    'https://audiogretel.com'
+  ];
+  
+  if (origin && origin !== 'null' && !allowedOrigins.includes(origin)) {
+    console.log('❌ [SSE] Invalid origin:', origin);
+    res.writeHead(403, { 'Content-Type': 'text/plain' });
+    res.end('Forbidden: Invalid origin');
+    return;
+  }
+  
+  // Continuar con el streaming
+  storyController.streamStoryGeneration(req, res, next);
+});
+
 // OpenAI API Health check
 router.get('/health', storyController.healthCheck);
 

@@ -7,6 +7,7 @@ const googleTtsService = require('../utils/googleTtsService');
 const { mixAudioWithBackground, getRandomMusicTrack, BACKGROUND_MUSIC_TRACKS } = require('../utils/audioMixer');
 const { constructPrompt, extractTitle } = require('../utils/helpers');
 const { admin, db } = require('../config/firebase');
+const { createProgressTracker } = require('../utils/progressTracker');
 const fs = require('fs').promises;
 const path = require('path');
 // const sharp = require('sharp'); // No longer needed with Fal.ai optimized images
@@ -14,6 +15,9 @@ console.log("OpenAI API Key:", process.env.OPENAI_API_KEY ? "Configurada (primer
 
 // Use Firebase instances from config
 let bucket = null;
+
+// Global manager para trackers de streaming
+const activeTrackers = new Map();
 
 // Function to get Firebase Storage bucket
 const getFirebaseStorageBucket = () => {
@@ -33,7 +37,7 @@ exports.generateStory = async (req, res, next) => {
   console.log('📝 Story generation request received:', req.body?.topic || 'No topic provided');
   
   try {
-    const { topic, language = 'es', storyLength, storyType, creativityLevel, ageGroup, childNames, englishLevel, spanishLevel } = req.body;
+    const { topic, language = 'es', storyLength, storyType, creativityLevel, ageGroup, childNames, englishLevel, spanishLevel, enableStreaming = false } = req.body;
     
     if (!topic) {
       return res.status(400).json({ error: 'Missing required parameter: topic' });
@@ -56,6 +60,30 @@ exports.generateStory = async (req, res, next) => {
         message: 'Debes verificar tu email antes de crear cuentos. Revisa tu bandeja de entrada.',
         details: 'Please verify your email address before creating stories.'
       });
+    }
+
+    // 📡 CREAR PROGRESS TRACKER PARA STREAMING
+    let progressTracker = null;
+    let storyId = null;
+    
+    if (enableStreaming) {
+      // Generar ID único para el streaming
+      storyId = `stream_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      progressTracker = createProgressTracker(storyId);
+      
+      // Registrar tracker para SSE
+      activeTrackers.set(storyId, progressTracker);
+      
+      // Limpiar tracker después de 5 minutos
+      setTimeout(() => {
+        activeTrackers.delete(storyId);
+      }, 5 * 60 * 1000);
+      
+      console.log(`📡 [STREAMING] Progress tracker creado para: ${storyId}`);
+      
+      // Iniciar fase de generación de historia
+      progressTracker.startPhase('story', 45000); // Estimado 45 segundos
+      progressTracker.updateProgress(5, { detail: 'Iniciando generación...' });
     }
 
     console.log('👤 Story parameters:', {
@@ -269,7 +297,103 @@ Escribe la historia en español.`;
     }
 
     // Generate the story
-    const story = await openaiService.generateCompletion(prompt, systemMessage, req.body);
+    // 📡 PARA STREAMING: DEVOLVER EL STREAM ID INMEDIATAMENTE Y PROCESAR EN BACKGROUND
+    if (enableStreaming && progressTracker) {
+      console.log('📡 [STREAMING] Modo streaming activado - devolviendo streamId inmediatamente');
+      
+      // Devolver response inmediatamente con streamId
+      const response = {
+        streamId: storyId,
+        message: 'Streaming iniciado'
+      };
+      res.json(response);
+      
+      // Procesar la generación en background después de un pequeño delay
+      setTimeout(async () => {
+        try {
+          console.log('🚀 [STREAMING] Iniciando generación en background...');
+          const story = await openaiService.generateCompletion(prompt, systemMessage, req.body, progressTracker);
+
+    if (!story || !story.content) {
+      console.error('❌ No story content received from OpenAI');
+            progressTracker.failPhase(new Error('Failed to generate story content'));
+            return;
+    }
+
+    // Extract title from the story content
+    const extractedTitle = extractTitle(story.content, topic, language);
+    const title = typeof extractedTitle === 'object' ? extractedTitle.title : extractedTitle;
+    
+    // Include title in the content for audio generation
+    const contentWithTitle = `${story.title}\n\n${story.content}`;
+    
+    console.log('📑 Generated story:', {
+      title: story.title,
+      contentLength: story.content.length,
+      contentWithTitleLength: contentWithTitle.length
+    });
+
+    // Save to database
+    console.log('💾 Saving story to database...');
+    const savedStory = await storyService.create({
+      title: story.title,
+      content: contentWithTitle,  // Save content with title included
+      email,  // Guardar el email del usuario
+      user: user.uid,  // Associate with Firebase user UID
+      language: normalizedLanguage,  // Save normalized language
+      ageGroup: ageGroup,  // Save age group
+      englishLevel: englishLevel,  // Save English level
+      spanishLevel: spanishLevel,  // Save Spanish level
+      storyType: storyType,  // Save story type
+      storyLength: storyLength,  // Save story length
+      childNames: childNames,  // Save child names
+    });
+
+    // Update user story counts (skip for admins)
+    if (!user.isAdmin) {
+      console.log('👤 Updating user story counts in Firestore...');
+      
+      // Update in Firestore
+      const userRef = db.collection('users').doc(user.uid);
+      await userRef.update({
+        storiesGenerated: user.storiesGenerated + 1,
+        monthlyStoriesGenerated: user.monthlyStoriesGenerated + 1,
+        updatedAt: new Date()
+      });
+      
+      // Update local user object for immediate use
+      user.storiesGenerated += 1;
+      user.monthlyStoriesGenerated += 1;
+      
+      console.log('✅ User story counts updated in Firestore');
+    } else {
+      console.log('👑 Admin user - skipping story count increment');
+    }
+
+          // 📡 COMPLETAR TRACKER
+          progressTracker.completePhase({
+            title: story.title,
+            contentLength: story.content.length,
+            wordCount: story.content.split(' ').length
+          });
+          progressTracker.complete({
+            story: savedStory.toObject(),
+            storiesRemaining: await getStoriesRemaining(user)
+          });
+
+    console.log('✅ Story generation complete');
+          
+        } catch (error) {
+          console.error('❌ Error en generación background:', error);
+          progressTracker.failPhase(error);
+        }
+      }, 2000); // 2 segundos de delay para que conecte el SSE
+      
+      return; // Salir aquí para streaming
+    }
+    
+    // Generación tradicional (sin streaming)
+    const story = await openaiService.generateCompletion(prompt, systemMessage, req.body, progressTracker);
 
     if (!story || !story.content) {
       console.error('❌ No story content received from OpenAI');
@@ -326,11 +450,32 @@ Escribe la historia en español.`;
       console.log('👑 Admin user - skipping story count increment');
     }
 
-    console.log('✅ Story generation complete');
-    res.json({
+    // 📡 COMPLETAR TRACKER SI ESTÁ HABILITADO
+    if (progressTracker) {
+      progressTracker.completePhase({
+        title: story.title,
+        contentLength: story.content.length,
+        wordCount: story.content.split(' ').length
+      });
+      progressTracker.complete({
       story: savedStory.toObject(),
       storiesRemaining: await getStoriesRemaining(user)
     });
+    }
+
+    console.log('✅ Story generation complete');
+    
+    const response = {
+      story: savedStory.toObject(),
+      storiesRemaining: await getStoriesRemaining(user)
+    };
+    
+    // 📡 INCLUIR storyId PARA STREAMING
+    if (enableStreaming && storyId) {
+      response.streamId = storyId;
+    }
+    
+    res.json(response);
   } catch (error) {
     console.error('Error generating story:', error);
     res.status(500).json({ error: 'Story generation failed' });
@@ -769,18 +914,18 @@ async function uploadToFirebaseStorage(localFilePath, storagePath, retries = 3) 
     for (let attempt = 1; attempt <= retries; attempt++) {
         try {
             console.log(`📤 [UPLOAD] Starting upload attempt ${attempt}/${retries}: ${localFilePath} → ${storagePath}`);
-            
-            // Check if local file exists and has size
-            const localFileStats = await fs.stat(localFilePath);
-            console.log(`📊 [UPLOAD] Local file size: ${localFileStats.size} bytes`);
-            
-            if (localFileStats.size === 0) {
-                throw new Error(`Local file is empty: ${localFilePath}`);
-            }
-            
-            const bucket = getFirebaseStorageBucket();
-            console.log(`📤 [UPLOAD] Uploading to bucket: ${bucket.name}`);
-            
+        
+        // Check if local file exists and has size
+        const localFileStats = await fs.stat(localFilePath);
+        console.log(`📊 [UPLOAD] Local file size: ${localFileStats.size} bytes`);
+        
+        if (localFileStats.size === 0) {
+            throw new Error(`Local file is empty: ${localFilePath}`);
+        }
+        
+        const bucket = getFirebaseStorageBucket();
+        console.log(`📤 [UPLOAD] Uploading to bucket: ${bucket.name}`);
+        
             // For large files (>500KB), use resumable upload with timeout
             const isLargeFile = localFileStats.size > 500000; // 500KB threshold
             
@@ -788,12 +933,12 @@ async function uploadToFirebaseStorage(localFilePath, storagePath, retries = 3) 
                 console.log(`📊 [UPLOAD] Large file detected (${(localFileStats.size / 1024).toFixed(2)}KB), using resumable upload`);
                 
                 // Use resumable upload for large files with extended timeout
-                await bucket.upload(localFilePath, {
-                    destination: storagePath,
+        await bucket.upload(localFilePath, {
+            destination: storagePath,
                     resumable: true,
                     timeout: 300000, // 5 minutes timeout for large files
-                    metadata: {
-                        cacheControl: 'public, max-age=31536000',
+            metadata: {
+                cacheControl: 'public, max-age=31536000',
                         contentType: 'audio/mpeg'
                     },
                     // Additional options for reliability
@@ -834,9 +979,9 @@ async function uploadToFirebaseStorage(localFilePath, storagePath, retries = 3) 
             
             // Critical: Verify file size matches exactly
             if (uploadedSize === 0) {
-                throw new Error(`Uploaded file is empty in Firebase Storage: ${storagePath}`);
-            }
-            
+            throw new Error(`Uploaded file is empty in Firebase Storage: ${storagePath}`);
+        }
+        
             if (uploadedSize !== localFileStats.size) {
                 throw new Error(`File size mismatch! Local: ${localFileStats.size} bytes, Firebase: ${uploadedSize} bytes. File was truncated during upload.`);
             }
@@ -858,9 +1003,9 @@ async function uploadToFirebaseStorage(localFilePath, storagePath, retries = 3) 
             
             console.log(`✅ [UPLOAD] Successfully uploaded and verified: ${storagePath}`);
             console.log(`📊 [UPLOAD] Final size: ${(uploadedSize / 1024).toFixed(2)}KB`);
-            return storagePath;
+        return storagePath;
             
-        } catch (error) {
+    } catch (error) {
             lastError = error;
             console.error(`❌ [UPLOAD] Attempt ${attempt}/${retries} failed:`, error.message);
             
@@ -1647,4 +1792,189 @@ exports.testPublishProcess = async (req, res) => {
             failedAt: 'unexpected_error'
         });
     }
+};
+
+// ========================================
+// 📡 STREAMING ENDPOINTS CON SSE
+// ========================================
+
+// Endpoint para streaming de texto en tiempo real
+exports.streamStoryGeneration = (req, res) => {
+  console.log('📡 [SSE] Nueva conexión de streaming solicitada');
+  
+  // Configurar headers para SSE compatibles con producción
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-store, must-revalidate',
+    'Connection': 'keep-alive',
+    'Access-Control-Allow-Origin': req.headers.origin || '*',
+    'Access-Control-Allow-Headers': 'Cache-Control, Content-Type, Authorization',
+    'Access-Control-Allow-Credentials': 'true',
+    'Access-Control-Expose-Headers': 'Content-Type',
+    'X-Accel-Buffering': 'no', // Nginx: desactivar buffering
+    'X-Content-Type-Options': 'nosniff'
+  });
+
+  const { storyId } = req.query;
+  
+  if (!storyId) {
+    res.write(`data: ${JSON.stringify({ error: 'storyId requerido' })}\n\n`);
+    res.end();
+    return;
+  }
+
+  console.log(`📡 [SSE] Conectando a stream para historia: ${storyId}`);
+
+  // Buscar tracker existente
+  const tracker = activeTrackers.get(storyId);
+  
+  if (!tracker) {
+    res.write(`data: ${JSON.stringify({ error: 'Historia no encontrada o ya completada' })}\n\n`);
+    res.end();
+    return;
+  }
+
+  // Función para enviar eventos SSE
+  const sendSSE = (eventType, data) => {
+    try {
+      const message = `event: ${eventType}\ndata: ${JSON.stringify(data)}\n\n`;
+      console.log(`📡 [SSE] Enviando evento '${eventType}' de ${message.length} bytes`);
+      
+      // Verificar que la conexión esté abierta antes de escribir
+      if (res.writable && !res.destroyed) {
+        res.write(message);
+        console.log(`✅ [SSE] Evento '${eventType}' enviado exitosamente`);
+      } else {
+        console.warn(`⚠️ [SSE] Conexión no escribible para evento '${eventType}'`);
+      }
+    } catch (error) {
+      console.error('❌ [SSE] Error enviando mensaje:', error.message);
+      console.error('❌ [SSE] Evento que falló:', eventType);
+    }
+  };
+
+  // Enviar estado inicial
+  sendSSE('connected', { 
+    storyId, 
+    status: 'Conectado al streaming',
+    streamedText: tracker.streamedText || ''
+  });
+
+  // Heartbeat para mantener la conexión viva en producción
+  const heartbeatInterval = setInterval(() => {
+    if (res.writable && !res.destroyed) {
+      // Enviar ping cada 30 segundos para mantener conexión
+      try {
+        res.write(`: heartbeat ${Date.now()}\n\n`);
+      } catch (error) {
+        console.log('❌ [SSE] Error en heartbeat:', error.message);
+        clearInterval(heartbeatInterval);
+      }
+    } else {
+      clearInterval(heartbeatInterval);
+    }
+  }, 30000);
+
+  // Función de limpieza mejorada
+  const cleanup = () => {
+    clearInterval(heartbeatInterval);
+    tracker.removeListener('textStream', onTextStream);
+    tracker.removeListener('progressUpdate', onProgress);
+    tracker.removeListener('phaseComplete', onPhaseComplete);
+    tracker.removeListener('complete', onComplete);
+    tracker.removeListener('error', onError);
+  };
+
+  // Configurar listeners para eventos del tracker
+  const onTextStream = (data) => {
+    sendSSE('textChunk', {
+      chunk: data.chunk,
+      totalText: data.totalText,
+      totalLength: data.totalLength
+    });
+  };
+
+  const onProgress = (data) => {
+    sendSSE('progress', {
+      phase: data.phase,
+      phaseName: data.phaseName,
+      progress: data.progress,
+      detail: data.details.detail || 'Procesando...'
+    });
+  };
+
+  const onPhaseComplete = (data) => {
+    sendSSE('phaseComplete', {
+      phase: data.phase,
+      phaseName: data.phaseName,
+      result: data.result
+    });
+  };
+
+  const onComplete = (data) => {
+    console.log('🎉 [SSE] Enviando evento complete con data:', {
+      hasResult: !!data.result,
+      hasStory: !!data.result?.story,
+      streamedTextLength: data.streamedText?.length || 0
+    });
+    
+    sendSSE('complete', {
+      result: data.result,
+      streamedText: data.streamedText,
+      totalDuration: data.totalDuration
+    });
+    
+    console.log('✅ [SSE] Evento complete enviado, esperando antes de cerrar conexión...');
+    
+    // Aumentar el delay para asegurar que el evento llegue al frontend
+    setTimeout(() => {
+      try {
+        console.log('📡 [SSE] Cerrando conexión después del delay');
+        cleanup(); // Usar función de limpieza
+        res.end();
+      } catch (error) {
+        console.log('📡 [SSE] Conexión ya cerrada:', error.message);
+      }
+    }, 3000); // Aumentado de 1000ms a 3000ms
+  };
+
+  const onError = (error) => {
+    sendSSE('error', { error: error.message });
+    cleanup(); // Limpiar antes de cerrar
+    res.end();
+  };
+
+  // Registrar listeners
+  tracker.on('textStream', onTextStream);
+  tracker.on('progressUpdate', onProgress);
+  tracker.on('phaseComplete', onPhaseComplete);
+  tracker.on('complete', onComplete);
+  tracker.on('error', onError);
+
+  // Limpiar listeners cuando el cliente se desconecta
+  req.on('close', () => {
+    console.log(`📡 [SSE] Cliente desconectado del stream: ${storyId}`);
+    console.log(`📊 [SSE] Estado de la conexión al desconectar:`, {
+      writable: res.writable,
+      destroyed: res.destroyed,
+      finished: res.finished,
+      hasListeners: {
+        textStream: tracker.listenerCount('textStream'),
+        progressUpdate: tracker.listenerCount('progressUpdate'),
+        phaseComplete: tracker.listenerCount('phaseComplete'),
+        complete: tracker.listenerCount('complete'),
+        error: tracker.listenerCount('error')
+      }
+    });
+    
+    cleanup();
+    console.log(`✅ [SSE] Listeners removidos para ${storyId}`);
+  });
+
+  req.on('error', (error) => {
+    console.error('❌ [SSE] Error en conexión:', error.message);
+    console.error('❌ [SSE] Código de error:', error.code);
+    console.error('❌ [SSE] Stack trace:', error.stack);
+    cleanup(); // Limpiar en caso de error
+  });
 };

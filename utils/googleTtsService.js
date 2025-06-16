@@ -421,17 +421,17 @@ async function mergeAudioChunks(audioChunks) {
     console.log('🔄 Fallback: Intentando fusión simple (puede causar problemas)...');
     
     // Fallback: concatenación simple (NO RECOMENDADO para MP3)
-    const totalLength = audioChunks.reduce((sum, chunk) => sum + chunk.length, 0);
-    const mergedBuffer = Buffer.alloc(totalLength);
-    
-    let offset = 0;
-    for (const chunk of audioChunks) {
-      chunk.copy(mergedBuffer, offset);
-      offset += chunk.length;
-    }
-    
+  const totalLength = audioChunks.reduce((sum, chunk) => sum + chunk.length, 0);
+  const mergedBuffer = Buffer.alloc(totalLength);
+  
+  let offset = 0;
+  for (const chunk of audioChunks) {
+    chunk.copy(mergedBuffer, offset);
+    offset += chunk.length;
+  }
+  
     console.warn('⚠️ Se usó fusión simple - el audio puede tener problemas');
-    return mergedBuffer;
+  return mergedBuffer;
   }
 }
 
