@@ -1,7 +1,10 @@
-console.log("🔥🔥🔥 ARCHIVO GOOGLETSSERVICE.JS VERSIÓN NUEVA CARGADO 🔥🔥🔥");
+console.log("🔥🔥🔥 ARCHIVO GOOGLETSSERVICE.JS VERSIÓN TURBO CARGADO 🔥🔥🔥");
 
 // Load environment variables
 require('dotenv').config();
+
+// 🚀 IMPORTAR SISTEMA DE CACHÉ INTELIGENTE
+const { audioCache } = require('./audioCache');
 
 // Helper function to escape SSML special characters
 function escapeSSML(text) {
@@ -282,7 +285,7 @@ function processTextWithIntelligentPauses(text, title = null) {
 }
 
 // Helper function to split text into chunks that respect the 5000-byte SSML limit
-function splitTextIntoChunks(text, maxChars = 1200) {
+function splitTextIntoChunks(text, maxChars = 2500) { // 🚀 Optimizado a 2500 chars
   // Split by sentences to maintain natural breaks
   const sentences = text.split(/(?<=[.!?])\s+/);
   const chunks = [];
@@ -376,15 +379,17 @@ async function mergeAudioChunks(audioChunks) {
     
     // Verificar que ffmpeg está disponible
     const FFMPEG_PATHS = require('../config/ffmpeg');
-    const ffmpegCommand = `"${FFMPEG_PATHS.ffmpeg}" -f concat -safe 0 -i "${concatListFile}" -c copy "${outputFile}"`;
     
-    console.log('🔧 Ejecutando comando ffmpeg para fusión...');
-    console.log(`   Comando: ${ffmpegCommand}`);
+    // 🚀 COMANDO FFMPEG OPTIMIZADO PARA MÁXIMA VELOCIDAD
+    const ffmpegCommand = `"${FFMPEG_PATHS.ffmpeg}" -f concat -safe 0 -i "${concatListFile}" -c copy -avoid_negative_ts make_zero -fflags +genpts "${outputFile}"`;
     
-    // Ejecutar ffmpeg con timeout extendido para chunks grandes
+    console.log('🔧 Ejecutando fusión FFmpeg optimizada...');
+    console.log(`   Comando optimizado: ${ffmpegCommand}`);
+    
+    // ⚡ Ejecutar ffmpeg con configuración optimizada para velocidad
     const { stdout, stderr } = await execPromise(ffmpegCommand, { 
-      timeout: 300000, // 5 minutos para fusión
-      maxBuffer: 1024 * 1024 * 50 // 50MB buffer
+      timeout: 180000, // 3 minutos (reducido para mayor velocidad)
+      maxBuffer: 1024 * 1024 * 100 // 100MB buffer para chunks grandes
     });
     
     if (stderr) {
@@ -438,133 +443,182 @@ async function synthesizeSpeech(text, voiceId = 'female', speed = 1.0, useIntell
     throw new Error('Google TTS API key is not configured. Please set GOOGLE_TTS_API_KEY in your .env file');
   }
 
-  // Optimización de parámetros para mejor rendimiento
+  // 🚀 VERIFICAR CACHÉ PRIMERO PARA MÁXIMA VELOCIDAD
+  const cacheKey = audioCache.generateCacheKey(text, voiceId, speed, useIntelligentPauses, title);
+  console.log(`🔍 Verificando caché para: ${cacheKey}...`);
+  
+  try {
+    if (await audioCache.exists(cacheKey)) {
+      console.log('⚡ CACHÉ HIT - Audio encontrado, retornando inmediatamente');
+      
+      if (progressTracker) {
+        progressTracker.startPhase('audio', 1000);
+        progressTracker.updateProgress(100, { detail: 'Audio recuperado del caché' });
+        progressTracker.completePhase();
+      }
+      
+      const cachedStats = await audioCache.getStats();
+      console.log(`📊 Stats del caché: ${cachedStats.entries} entradas, ${cachedStats.totalSizeMB}MB`);
+      
+      return await audioCache.get(cacheKey);
+    }
+  } catch (cacheError) {
+    console.warn('⚠️ Error verificando caché, continuando con generación:', cacheError.message);
+  }
+  
+  console.log('💫 CACHÉ MISS - Generando nuevo audio...');
+
+  // 🚀 OPTIMIZACIÓN DE PARÁMETROS PARA MÁXIMA VELOCIDAD
   const estimatedSSMLSize = text.length * 2.5; // Estimación más realista
-  const MAX_CHUNK_SIZE = 2000; // Chunks más grandes para menos llamadas API
+  const MAX_CHUNK_SIZE = 2500; // 🔥 Chunks más grandes para menos llamadas API
   const MAX_SSML_SIZE = 4500; // Límite más cercano al real de Google (5000)
+  const MAX_PARALLEL_CHUNKS = 3; // 🚀 Procesamiento paralelo (3 chunks simultáneos)
   
   if (estimatedSSMLSize > MAX_SSML_SIZE || text.length > MAX_CHUNK_SIZE) {
-    console.log(`⚡ === OPTIMIZACIÓN DE VELOCIDAD ACTIVADA ===`);
+    console.log(`⚡ === MODO TURBO ACTIVADO - PROCESAMIENTO PARALELO ===`);
     console.log(`📏 Texto largo detectado (${text.length} chars, ~${Math.round(estimatedSSMLSize)} bytes SSML)`);
     console.log(`🚀 Usando chunks optimizados de ${MAX_CHUNK_SIZE} caracteres`);
+    console.log(`⚡ Procesamiento paralelo: ${MAX_PARALLEL_CHUNKS} chunks simultáneos`);
+    
+    const chunks = splitTextIntoChunks(text, MAX_CHUNK_SIZE);
+    console.log(`🔪 Dividido en ${chunks.length} chunks para procesamiento paralelo`);
     
     // Inicializar progreso si está disponible
     if (progressTracker) {
-      progressTracker.startPhase('audio', chunks.length * 8000); // Estimado 8s por chunk
-      progressTracker.updateProgress(5, { detail: 'Preparando síntesis de voz...' });
+      progressTracker.startPhase('audio', chunks.length * 6000); // Estimado 6s por chunk (optimizado)
+      progressTracker.updateProgress(5, { detail: 'Preparando síntesis paralela...' });
     }
     
-    const chunks = splitTextIntoChunks(text, MAX_CHUNK_SIZE);
-    console.log(`🔪 Dividido en ${chunks.length} chunks (menos llamadas = más rápido)`);
-    
-    const audioChunks = [];
+    const audioChunks = new Array(chunks.length); // Array ordenado para mantener secuencia
     const startTime = Date.now();
     
-    // Procesamiento con rate limiting inteligente y progreso
-    for (let i = 0; i < chunks.length; i++) {
-      const chunkStartTime = Date.now();
-      console.log(`🎤 Procesando chunk ${i + 1}/${chunks.length} (${chunks[i].length} chars)...`);
+    // 🚀 PROCESAMIENTO PARALELO EN LOTES
+    console.log(`🔥 Iniciando procesamiento paralelo en lotes de ${MAX_PARALLEL_CHUNKS}...`);
+    
+    for (let batchStart = 0; batchStart < chunks.length; batchStart += MAX_PARALLEL_CHUNKS) {
+      const batchEnd = Math.min(batchStart + MAX_PARALLEL_CHUNKS, chunks.length);
+      const batchSize = batchEnd - batchStart;
       
-      // Actualizar progreso
-      if (progressTracker) {
-        const progress = 10 + ((i / chunks.length) * 80); // 10% inicial + 80% para chunks
-        progressTracker.updateProgress(progress, { 
-          detail: `Sintetizando chunk ${i + 1}/${chunks.length}...` 
-        });
+      console.log(`🎤 Procesando lote ${Math.floor(batchStart/MAX_PARALLEL_CHUNKS) + 1} (chunks ${batchStart + 1}-${batchEnd})...`);
+      
+      // Crear promesas para el lote actual
+      const batchPromises = [];
+      for (let i = batchStart; i < batchEnd; i++) {
+        const chunkIndex = i;
+        const chunkText = chunks[i];
+        const chunkTitle = (i === 0) ? title : null; // Solo título en el primer chunk
+        
+        console.log(`   🚀 Iniciando chunk ${i + 1}/${chunks.length} en paralelo (${chunkText.length} chars)...`);
+        
+        // Crear promesa para este chunk con manejo de errores individualizado
+        const chunkPromise = synthesizeSingleChunk(chunkText, voiceId, speed, useIntelligentPauses, chunkTitle)
+          .then(chunkAudio => {
+            console.log(`   ✅ Chunk ${chunkIndex + 1} completado en paralelo`);
+            return { index: chunkIndex, audio: Buffer.from(chunkAudio) };
+          })
+          .catch(error => {
+            console.error(`   ❌ Error en chunk ${chunkIndex + 1}:`, error.message);
+            
+            // Retry con delay si es rate limit
+            if (error.message.includes('429') || error.message.includes('quota')) {
+              console.log(`   🔄 Reintentando chunk ${chunkIndex + 1} por rate limit...`);
+              return new Promise(resolve => setTimeout(resolve, 2000))
+                .then(() => synthesizeSingleChunk(chunkText, voiceId, speed, useIntelligentPauses, chunkTitle))
+                .then(chunkAudio => {
+                  console.log(`   ✅ Chunk ${chunkIndex + 1} completado en reintento`);
+                  return { index: chunkIndex, audio: Buffer.from(chunkAudio) };
+                });
+            }
+            throw error;
+          });
+        
+        batchPromises.push(chunkPromise);
       }
       
+      // Esperar a que complete el lote actual
       try {
-        // Solo pasar título al primer chunk
-        const chunkTitle = (i === 0) ? title : null;
-        const chunkAudio = await synthesizeSingleChunk(chunks[i], voiceId, speed, useIntelligentPauses, chunkTitle);
-        audioChunks.push(Buffer.from(chunkAudio));
+        const batchResults = await Promise.all(batchPromises);
         
-        const chunkTime = Date.now() - chunkStartTime;
-        console.log(`   ✅ Chunk ${i + 1} completado en ${chunkTime}ms`);
+        // Asignar resultados a sus posiciones correctas
+        batchResults.forEach(result => {
+          audioChunks[result.index] = result.audio;
+        });
         
-        // Actualizar progreso después del chunk
+        const completedSoFar = batchEnd;
+        const batchTime = Date.now() - startTime;
+        console.log(`   ✅ Lote completado: ${completedSoFar}/${chunks.length} chunks (${batchTime}ms total)`);
+        
+        // Actualizar progreso
         if (progressTracker) {
-          const progress = 10 + (((i + 1) / chunks.length) * 80);
+          const progress = 10 + ((completedSoFar / chunks.length) * 80);
           progressTracker.updateProgress(progress, { 
-            detail: `Chunk ${i + 1}/${chunks.length} completado (${chunkTime}ms)` 
+            detail: `${completedSoFar}/${chunks.length} chunks completados en paralelo` 
           });
         }
         
-        // Rate limiting inteligente basado en el tiempo de respuesta
-        if (i < chunks.length - 1) {
-          const delay = Math.max(500, Math.min(2000, chunkTime * 0.3)); // Entre 500ms y 2s
-          console.log(`   ⏳ Esperando ${delay}ms antes del siguiente chunk...`);
-          
-          // Mostrar progreso durante la espera
-          if (progressTracker) {
-            progressTracker.logProgress(`Esperando ${delay}ms antes del siguiente chunk`, { chunkCompleted: i + 1 });
-          }
-          
-          await new Promise(resolve => setTimeout(resolve, delay));
+        // Rate limiting entre lotes (más conservador)
+        if (batchEnd < chunks.length) {
+          const batchDelay = 800; // Delay más corto entre lotes
+          console.log(`   ⏳ Esperando ${batchDelay}ms antes del siguiente lote...`);
+          await new Promise(resolve => setTimeout(resolve, batchDelay));
         }
+        
       } catch (error) {
-        console.error(`❌ Error procesando chunk ${i + 1}:`, error.message);
-        
-        // Actualizar progreso con error
+        console.error(`❌ Error en lote de chunks ${batchStart + 1}-${batchEnd}:`, error.message);
         if (progressTracker) {
-          progressTracker.logProgress(`Error en chunk ${i + 1}, reintentando...`, { error: error.message });
+          progressTracker.failPhase(error);
         }
-        
-        // Retry con backoff exponencial
-        if (error.message.includes('429') || error.message.includes('quota')) {
-          console.log(`🔄 Rate limit detectado, esperando antes de reintentar...`);
-          const retryDelay = Math.min(10000, 1000 * Math.pow(2, i)); // Backoff exponencial
-          
-          if (progressTracker) {
-            progressTracker.updateProgress(10 + ((i / chunks.length) * 80), { 
-              detail: `Rate limit - esperando ${retryDelay}ms...` 
-            });
-          }
-          
-          await new Promise(resolve => setTimeout(resolve, retryDelay));
-          
-          // Reintentar una vez
-          try {
-            const chunkTitle = (i === 0) ? title : null;
-            const chunkAudio = await synthesizeSingleChunk(chunks[i], voiceId, speed, useIntelligentPauses, chunkTitle);
-            audioChunks.push(Buffer.from(chunkAudio));
-            console.log(`   ✅ Chunk ${i + 1} completado en reintento`);
-            
-            if (progressTracker) {
-              progressTracker.logProgress(`Chunk ${i + 1} completado en reintento`, { success: true });
-            }
-          } catch (retryError) {
-            console.error(`❌ Error en reintento del chunk ${i + 1}:`, retryError.message);
-            if (progressTracker) {
-              progressTracker.failPhase(retryError);
-            }
-            throw retryError;
-          }
-        } else {
-          if (progressTracker) {
-            progressTracker.failPhase(error);
-          }
-          throw error;
-        }
+        throw error;
       }
     }
     
     const totalTime = Date.now() - startTime;
-    console.log(`⚡ Todos los chunks procesados en ${totalTime}ms (${Math.round(totalTime/chunks.length)}ms promedio por chunk)`)
+    const avgTimePerChunk = Math.round(totalTime / chunks.length);
+    console.log(`⚡ TURBO MODE COMPLETADO: ${chunks.length} chunks en ${totalTime}ms (${avgTimePerChunk}ms promedio)`);
+    console.log(`🚀 Velocidad: ${Math.round(chunks.length / (totalTime / 1000))} chunks/segundo`);
     
     // Progreso antes de fusionar
     if (progressTracker) {
-      progressTracker.updateProgress(95, { detail: 'Fusionando chunks de audio...' });
+      progressTracker.updateProgress(95, { detail: 'Fusionando audio paralelo...' });
     }
     
-    console.log('🔗 Merging audio chunks...');
+    console.log('🔗 Fusionando chunks procesados en paralelo...');
     const mergedAudio = await mergeAudioChunks(audioChunks);
-    console.log(`✅ Successfully merged ${chunks.length} chunks into ${mergedAudio.length} bytes`);
+    console.log(`✅ ${chunks.length} chunks fusionados: ${mergedAudio.length} bytes (MODO TURBO)`);
+    
+    // 🚀 GUARDAR EN CACHÉ PARA PRÓXIMAS GENERACIONES
+    try {
+      await audioCache.set(cacheKey, mergedAudio, { 
+        voiceId, 
+        speed, 
+        chunks: chunks.length,
+        mode: 'parallel' 
+      });
+      console.log(`💾 Audio guardado en caché: ${cacheKey}`);
+    } catch (cacheError) {
+      console.warn('⚠️ Error guardando en caché:', cacheError.message);
+    }
     
     return mergedAudio;
   } else {
     // Text is short enough, process normally
-    return await synthesizeSingleChunk(text, voiceId, speed, useIntelligentPauses, title);
+    console.log('🎤 Texto corto - procesamiento directo (sin chunks)');
+    const singleChunkAudio = await synthesizeSingleChunk(text, voiceId, speed, useIntelligentPauses, title);
+    
+    // 🚀 GUARDAR EN CACHÉ TAMBIÉN LOS TEXTOS CORTOS
+    try {
+      await audioCache.set(cacheKey, singleChunkAudio, { 
+        voiceId, 
+        speed, 
+        chunks: 1,
+        mode: 'single' 
+      });
+      console.log(`💾 Audio corto guardado en caché: ${cacheKey}`);
+    } catch (cacheError) {
+      console.warn('⚠️ Error guardando audio corto en caché:', cacheError.message);
+    }
+    
+    return singleChunkAudio;
   }
 }
 
