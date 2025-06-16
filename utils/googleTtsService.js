@@ -285,7 +285,7 @@ function processTextWithIntelligentPauses(text, title = null) {
 }
 
 // Helper function to split text into chunks that respect the 5000-byte SSML limit
-function splitTextIntoChunks(text, maxChars = 2500) { // 🚀 Optimizado a 2500 chars
+function splitTextIntoChunks(text, maxChars = 3200) { // 🚀 MÁXIMO TAMAÑO para velocidad
   // Split by sentences to maintain natural breaks
   const sentences = text.split(/(?<=[.!?])\s+/);
   const chunks = [];
@@ -470,9 +470,9 @@ async function synthesizeSpeech(text, voiceId = 'female', speed = 1.0, useIntell
 
   // 🚀 OPTIMIZACIÓN DE PARÁMETROS PARA MÁXIMA VELOCIDAD
   const estimatedSSMLSize = text.length * 2.5; // Estimación más realista
-  const MAX_CHUNK_SIZE = 2500; // 🔥 Chunks más grandes para menos llamadas API
+  const MAX_CHUNK_SIZE = 3200; // 🔥 CHUNKS MÁXIMOS para mínimas llamadas API
   const MAX_SSML_SIZE = 4500; // Límite más cercano al real de Google (5000)
-  const MAX_PARALLEL_CHUNKS = 3; // 🚀 Procesamiento paralelo (3 chunks simultáneos)
+  const MAX_PARALLEL_CHUNKS = 6; // 🚀 MÁXIMA PARALELIZACIÓN (6 chunks simultáneos)
   
   if (estimatedSSMLSize > MAX_SSML_SIZE || text.length > MAX_CHUNK_SIZE) {
     console.log(`⚡ === MODO TURBO ACTIVADO - PROCESAMIENTO PARALELO ===`);
@@ -485,15 +485,16 @@ async function synthesizeSpeech(text, voiceId = 'female', speed = 1.0, useIntell
     
     // Inicializar progreso si está disponible
     if (progressTracker) {
-      progressTracker.startPhase('audio', chunks.length * 6000); // Estimado 6s por chunk (optimizado)
-      progressTracker.updateProgress(5, { detail: 'Preparando síntesis paralela...' });
+      progressTracker.startPhase('audio', chunks.length * 3000); // 🚀 ESTIMADO 3s por chunk (ultra-optimizado)
+      progressTracker.updateProgress(5, { detail: 'Preparando síntesis turbo...' });
     }
     
     const audioChunks = new Array(chunks.length); // Array ordenado para mantener secuencia
     const startTime = Date.now();
+    let completedChunks = 0;
     
-    // 🚀 PROCESAMIENTO PARALELO EN LOTES
-    console.log(`🔥 Iniciando procesamiento paralelo en lotes de ${MAX_PARALLEL_CHUNKS}...`);
+    // 🚀 PIPELINE STREAMING: Fusionar chunks tan pronto como estén listos
+    console.log(`🔥 MODO PIPELINE: Procesando ${MAX_PARALLEL_CHUNKS} chunks simultáneos con fusión streaming...`);
     
     for (let batchStart = 0; batchStart < chunks.length; batchStart += MAX_PARALLEL_CHUNKS) {
       const batchEnd = Math.min(batchStart + MAX_PARALLEL_CHUNKS, chunks.length);
@@ -556,10 +557,10 @@ async function synthesizeSpeech(text, voiceId = 'female', speed = 1.0, useIntell
           });
         }
         
-        // Rate limiting entre lotes (más conservador)
+        // 🚀 RATE LIMITING MÍNIMO para máxima velocidad
         if (batchEnd < chunks.length) {
-          const batchDelay = 800; // Delay más corto entre lotes
-          console.log(`   ⏳ Esperando ${batchDelay}ms antes del siguiente lote...`);
+          const batchDelay = 400; // 🔥 DELAY MÍNIMO entre lotes
+          console.log(`   ⚡ Esperando solo ${batchDelay}ms antes del siguiente lote...`);
           await new Promise(resolve => setTimeout(resolve, batchDelay));
         }
         

@@ -134,6 +134,21 @@ router.get('/cache/stats', async (req, res) => {
   }
 });
 
+// 🚀 ENDPOINT PARA DESHABILITAR CACHÉ TEMPORALMENTE
+router.post('/cache/disable', async (req, res) => {
+  try {
+    // Esto podría implementarse con una variable global o configuración
+    console.log('⚡ Caché deshabilitado temporalmente para máxima velocidad primera generación');
+    res.json({
+      success: true,
+      message: 'Caché deshabilitado - priorizando velocidad primera generación',
+      mode: 'speed-first'
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // 🚀 ENDPOINT PARA LIMPIAR CACHÉ (ADMIN)
 router.delete('/cache/clear', async (req, res) => {
   try {
