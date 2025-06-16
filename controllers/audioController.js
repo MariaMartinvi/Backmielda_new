@@ -2,6 +2,19 @@
 const googleTtsService = require('../utils/googleTtsService');
 const { mixAudioWithBackground, getRandomMusicTrack, BACKGROUND_MUSIC_TRACKS } = require('../utils/audioMixer');
 const storyService = require('../services/storyService');
+const { admin } = require('../config/firebase');
+const fs = require('fs').promises;
+const path = require('path');
+
+// Function to get Firebase Storage bucket
+const getFirebaseStorageBucket = () => {
+  try {
+    return admin.storage().bucket();
+  } catch (error) {
+    console.error('❌ Error getting Firebase Storage bucket:', error.message);
+    throw new Error('Firebase Storage not available');
+  }
+};
 
 exports.generateAudio = async (req, res, next) => {
   try {
@@ -101,16 +114,37 @@ exports.generateAudio = async (req, res, next) => {
 
         // Check if audio is too large for database storage (Firestore has 1MB limit per document)
         if (audioBase64.length > 800000) { // Leave some margin (800KB)
-          console.log('⚠️ [AUDIO] Audio too large for database storage, saving to temporary file instead');
+          console.log('⚠️ [AUDIO] Audio too large for database storage, saving to temporary Firebase Storage instead');
           
-          // For now, we'll store it in tempAudioData anyway since we need it during publish
-          // In production, you might want to use temporary Firebase Storage
-          await storyService.update(storyId, { 
-            lastAudioParams: audioParams,
-            tempAudioData: audioBase64.substring(0, 800000) + "..." // Truncate for now
+          // Save to temporary file in Firebase Storage (same system as storyController.js)
+          const tempDir = path.join(__dirname, '../temp');
+          await fs.mkdir(tempDir, { recursive: true });
+          
+          const tempAudioFileName = `temp_${storyId}_${Date.now()}.mp3`;
+          const tempAudioFilePath = path.join(tempDir, tempAudioFileName);
+          await fs.writeFile(tempAudioFilePath, audioBuffer);
+          
+          // Upload to temporary Firebase Storage
+          const bucket = getFirebaseStorageBucket();
+          await bucket.upload(tempAudioFilePath, {
+            destination: `temp-audio/${tempAudioFileName}`,
+            metadata: {
+              cacheControl: 'public, max-age=31536000',
+              contentType: 'audio/mpeg'
+            },
           });
           
-          console.log('⚠️ [AUDIO] Audio truncated and saved (consider implementing Firebase Storage for large files)');
+          const tempAudioStoragePath = `temp-audio/${tempAudioFileName}`;
+          
+          // Clean up local temp file
+          await fs.unlink(tempAudioFilePath);
+          
+          await storyService.update(storyId, { 
+            lastAudioParams: audioParams,
+            tempAudioPath: tempAudioStoragePath // Store path instead of truncated data
+          });
+          
+          console.log('💾 [AUDIO] Saved complete audio to temporary Firebase Storage for future publish');
         } else {
           await storyService.update(storyId, { 
             lastAudioParams: audioParams,

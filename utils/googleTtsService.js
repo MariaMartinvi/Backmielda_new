@@ -285,7 +285,7 @@ function processTextWithIntelligentPauses(text, title = null) {
 }
 
 // Helper function to split text into chunks that respect the 5000-byte SSML limit
-function splitTextIntoChunks(text, maxChars = 3200) { // 🚀 MÁXIMO TAMAÑO para velocidad
+function splitTextIntoChunks(text, maxChars = 2800) { // 🔧 TAMAÑO ESTABLE para confiabilidad
   // Split by sentences to maintain natural breaks
   const sentences = text.split(/(?<=[.!?])\s+/);
   const chunks = [];
@@ -470,9 +470,9 @@ async function synthesizeSpeech(text, voiceId = 'female', speed = 1.0, useIntell
 
   // 🚀 OPTIMIZACIÓN DE PARÁMETROS PARA MÁXIMA VELOCIDAD
   const estimatedSSMLSize = text.length * 2.5; // Estimación más realista
-  const MAX_CHUNK_SIZE = 3200; // 🔥 CHUNKS MÁXIMOS para mínimas llamadas API
+  const MAX_CHUNK_SIZE = 2800; // 🔧 CHUNKS ESTABLES para confiabilidad en publicación
   const MAX_SSML_SIZE = 4500; // Límite más cercano al real de Google (5000)
-  const MAX_PARALLEL_CHUNKS = 6; // 🚀 MÁXIMA PARALELIZACIÓN (6 chunks simultáneos)
+  const MAX_PARALLEL_CHUNKS = 4; // 🔧 PARALELIZACIÓN ESTABLE para publicación
   
   if (estimatedSSMLSize > MAX_SSML_SIZE || text.length > MAX_CHUNK_SIZE) {
     console.log(`⚡ === MODO TURBO ACTIVADO - PROCESAMIENTO PARALELO ===`);
@@ -485,7 +485,7 @@ async function synthesizeSpeech(text, voiceId = 'female', speed = 1.0, useIntell
     
     // Inicializar progreso si está disponible
     if (progressTracker) {
-      progressTracker.startPhase('audio', chunks.length * 3000); // 🚀 ESTIMADO 3s por chunk (ultra-optimizado)
+      progressTracker.startPhase('audio', chunks.length * 4000); // 🔧 ESTIMADO 4s por chunk (estable para publicación)
       progressTracker.updateProgress(5, { detail: 'Preparando síntesis turbo...' });
     }
     
@@ -557,10 +557,10 @@ async function synthesizeSpeech(text, voiceId = 'female', speed = 1.0, useIntell
           });
         }
         
-        // 🚀 RATE LIMITING MÍNIMO para máxima velocidad
+        // 🔧 RATE LIMITING ESTABLE para confiabilidad en publicación
         if (batchEnd < chunks.length) {
-          const batchDelay = 400; // 🔥 DELAY MÍNIMO entre lotes
-          console.log(`   ⚡ Esperando solo ${batchDelay}ms antes del siguiente lote...`);
+          const batchDelay = 600; // 🔧 DELAY ESTABLE entre lotes para publicación
+          console.log(`   🔧 Esperando ${batchDelay}ms para estabilidad antes del siguiente lote...`);
           await new Promise(resolve => setTimeout(resolve, batchDelay));
         }
         

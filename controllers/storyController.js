@@ -762,44 +762,128 @@ exports.healthCheck = async (req, res) => {
   return res.status(statusCode).json(health);
 };
 
-// Function to upload file to Firebase Storage
-async function uploadToFirebaseStorage(localFilePath, storagePath) {
-    try {
-        console.log(`📤 [UPLOAD] Starting upload: ${localFilePath} → ${storagePath}`);
-        
-        // Check if local file exists and has size
-        const localFileStats = await fs.stat(localFilePath);
-        console.log(`📊 [UPLOAD] Local file size: ${localFileStats.size} bytes`);
-        
-        if (localFileStats.size === 0) {
-            throw new Error(`Local file is empty: ${localFilePath}`);
+// Function to upload file to Firebase Storage with enhanced reliability for large audio files
+async function uploadToFirebaseStorage(localFilePath, storagePath, retries = 3) {
+    let lastError;
+    
+    for (let attempt = 1; attempt <= retries; attempt++) {
+        try {
+            console.log(`📤 [UPLOAD] Starting upload attempt ${attempt}/${retries}: ${localFilePath} → ${storagePath}`);
+            
+            // Check if local file exists and has size
+            const localFileStats = await fs.stat(localFilePath);
+            console.log(`📊 [UPLOAD] Local file size: ${localFileStats.size} bytes`);
+            
+            if (localFileStats.size === 0) {
+                throw new Error(`Local file is empty: ${localFilePath}`);
+            }
+            
+            const bucket = getFirebaseStorageBucket();
+            console.log(`📤 [UPLOAD] Uploading to bucket: ${bucket.name}`);
+            
+            // For large files (>500KB), use resumable upload with timeout
+            const isLargeFile = localFileStats.size > 500000; // 500KB threshold
+            
+            if (isLargeFile) {
+                console.log(`📊 [UPLOAD] Large file detected (${(localFileStats.size / 1024).toFixed(2)}KB), using resumable upload`);
+                
+                // Use resumable upload for large files with extended timeout
+                await bucket.upload(localFilePath, {
+                    destination: storagePath,
+                    resumable: true,
+                    timeout: 300000, // 5 minutes timeout for large files
+                    metadata: {
+                        cacheControl: 'public, max-age=31536000',
+                        contentType: 'audio/mpeg'
+                    },
+                    // Additional options for reliability
+                    validation: 'crc32c', // Enable checksum validation
+                });
+            } else {
+                // Use simple upload for smaller files
+                await bucket.upload(localFilePath, {
+                    destination: storagePath,
+                    timeout: 60000, // 1 minute timeout for small files
+                    metadata: {
+                        cacheControl: 'public, max-age=31536000',
+                        contentType: 'audio/mpeg'
+                    },
+                });
+            }
+            
+            // Verify the uploaded file with retries
+            console.log(`🔍 [UPLOAD] Verifying uploaded file...`);
+            let verificationAttempts = 3;
+            let uploadedFile, metadata;
+            
+            while (verificationAttempts > 0) {
+                try {
+                    uploadedFile = bucket.file(storagePath);
+                    [metadata] = await uploadedFile.getMetadata();
+                    break;
+                } catch (metaError) {
+                    verificationAttempts--;
+                    if (verificationAttempts === 0) throw metaError;
+                    console.log(`⚠️ [UPLOAD] Metadata retrieval failed, retrying... (${verificationAttempts} attempts left)`);
+                    await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+                }
+            }
+            
+            const uploadedSize = parseInt(metadata.size);
+            console.log(`📊 [UPLOAD] Upload verification - Local: ${localFileStats.size} bytes, Firebase: ${uploadedSize} bytes`);
+            
+            // Critical: Verify file size matches exactly
+            if (uploadedSize === 0) {
+                throw new Error(`Uploaded file is empty in Firebase Storage: ${storagePath}`);
+            }
+            
+            if (uploadedSize !== localFileStats.size) {
+                throw new Error(`File size mismatch! Local: ${localFileStats.size} bytes, Firebase: ${uploadedSize} bytes. File was truncated during upload.`);
+            }
+            
+            // Additional verification: Download a small chunk to verify integrity
+            if (isLargeFile) {
+                try {
+                    console.log(`🔍 [UPLOAD] Performing integrity check on uploaded file...`);
+                    const [chunk] = await uploadedFile.download({ start: 0, end: 1023 }); // Download first 1KB
+                    if (chunk.length === 0) {
+                        throw new Error('Downloaded chunk is empty - file may be corrupted');
+                    }
+                    console.log(`✅ [UPLOAD] Integrity check passed - downloaded ${chunk.length} bytes successfully`);
+                } catch (integrityError) {
+                    console.warn(`⚠️ [UPLOAD] Integrity check failed: ${integrityError.message}`);
+                    throw new Error(`File integrity check failed: ${integrityError.message}`);
+                }
+            }
+            
+            console.log(`✅ [UPLOAD] Successfully uploaded and verified: ${storagePath}`);
+            console.log(`📊 [UPLOAD] Final size: ${(uploadedSize / 1024).toFixed(2)}KB`);
+            return storagePath;
+            
+        } catch (error) {
+            lastError = error;
+            console.error(`❌ [UPLOAD] Attempt ${attempt}/${retries} failed:`, error.message);
+            
+            if (attempt < retries) {
+                // Clean up potentially corrupted file before retry
+                try {
+                    const bucket = getFirebaseStorageBucket();
+                    const file = bucket.file(storagePath);
+                    await file.delete();
+                    console.log(`🗑️ [UPLOAD] Cleaned up potentially corrupted file for retry`);
+                } catch (cleanupError) {
+                    console.warn(`⚠️ [UPLOAD] Failed to cleanup file for retry:`, cleanupError.message);
+                }
+                
+                const waitTime = attempt * 2000; // Progressive backoff: 2s, 4s, 6s
+                console.log(`⏳ [UPLOAD] Waiting ${waitTime}ms before retry...`);
+                await new Promise(resolve => setTimeout(resolve, waitTime));
+            }
         }
-        
-        const bucket = getFirebaseStorageBucket();
-        console.log(`📤 [UPLOAD] Uploading to bucket: ${bucket.name}`);
-        
-        await bucket.upload(localFilePath, {
-            destination: storagePath,
-            metadata: {
-                cacheControl: 'public, max-age=31536000',
-            },
-        });
-        
-        // Verify the uploaded file
-        const uploadedFile = bucket.file(storagePath);
-        const [metadata] = await uploadedFile.getMetadata();
-        console.log(`✅ [UPLOAD] Uploaded successfully - Firebase Storage size: ${metadata.size} bytes`);
-        
-        if (parseInt(metadata.size) === 0) {
-            throw new Error(`Uploaded file is empty in Firebase Storage: ${storagePath}`);
-        }
-        
-        console.log(`✅ Uploaded to Firebase Storage: ${storagePath}`);
-        return storagePath;
-    } catch (error) {
-        console.error(`❌ Error uploading to Firebase Storage ${storagePath}:`, error);
-        throw error;
     }
+    
+    console.error(`❌ [UPLOAD] All ${retries} upload attempts failed`);
+    throw new Error(`Failed to upload ${localFilePath} after ${retries} attempts. Last error: ${lastError.message}`);
 }
 
 // Function to generate image with OpenAI
