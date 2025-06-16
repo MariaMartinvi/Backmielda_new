@@ -6,7 +6,8 @@ const bodyParser = require('body-parser');
 const { 
   createCheckoutSession, 
   handleSuccess,
-  handleWebhook
+  handleWebhook,
+  fixPremiumUser
 } = require('../controllers/stripeController');
 
 // Importar middlewares de webhook
@@ -27,5 +28,6 @@ router.post('/webhook',
 // Otras rutas de Stripe
 router.post('/create-checkout-session', createCheckoutSession);
 router.get('/success', handleSuccess);
+router.post('/fix-premium-user', fixPremiumUser);
 
 module.exports = router;

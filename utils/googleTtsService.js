@@ -335,56 +335,226 @@ function splitTextIntoChunks(text, maxChars = 1200) {
 
 // Helper function to merge audio chunks
 async function mergeAudioChunks(audioChunks) {
-  // For now, just concatenate the audio data
-  // In a more sophisticated implementation, you might want to use ffmpeg
-  const totalLength = audioChunks.reduce((sum, chunk) => sum + chunk.length, 0);
-  const mergedBuffer = Buffer.alloc(totalLength);
+  console.log('🔧 === FUSIONANDO CHUNKS DE AUDIO CON FFMPEG ===');
+  console.log(`📊 Total de chunks: ${audioChunks.length}`);
   
-  let offset = 0;
-  for (const chunk of audioChunks) {
-    chunk.copy(mergedBuffer, offset);
-    offset += chunk.length;
+  // Si solo hay un chunk, devolverlo directamente
+  if (audioChunks.length === 1) {
+    console.log('✅ Solo un chunk, no necesita fusión');
+    return audioChunks[0];
   }
   
-  return mergedBuffer;
+  const fs = require('fs').promises;
+  const path = require('path');
+  const { exec } = require('child_process');
+  const { promisify } = require('util');
+  const execPromise = promisify(exec);
+  
+  try {
+    // Crear directorio temporal
+    const tempDir = path.join(__dirname, '../temp/audio-chunks');
+    await fs.mkdir(tempDir, { recursive: true });
+    
+    const timestamp = Date.now();
+    const chunkFiles = [];
+    const concatListFile = path.join(tempDir, `concat_list_${timestamp}.txt`);
+    const outputFile = path.join(tempDir, `merged_audio_${timestamp}.mp3`);
+    
+    // Guardar cada chunk como archivo temporal
+    console.log('💾 Guardando chunks temporales...');
+    for (let i = 0; i < audioChunks.length; i++) {
+      const chunkFile = path.join(tempDir, `chunk_${timestamp}_${i}.mp3`);
+      await fs.writeFile(chunkFile, audioChunks[i]);
+      chunkFiles.push(chunkFile);
+      console.log(`   📁 Chunk ${i + 1}: ${chunkFile}`);
+    }
+    
+    // Crear archivo de lista para ffmpeg concat
+    const concatList = chunkFiles.map(file => `file '${file}'`).join('\n');
+    await fs.writeFile(concatListFile, concatList);
+    console.log(`📝 Lista de concatenación creada: ${concatListFile}`);
+    
+    // Verificar que ffmpeg está disponible
+    const FFMPEG_PATHS = require('../config/ffmpeg');
+    const ffmpegCommand = `"${FFMPEG_PATHS.ffmpeg}" -f concat -safe 0 -i "${concatListFile}" -c copy "${outputFile}"`;
+    
+    console.log('🔧 Ejecutando comando ffmpeg para fusión...');
+    console.log(`   Comando: ${ffmpegCommand}`);
+    
+    // Ejecutar ffmpeg con timeout extendido para chunks grandes
+    const { stdout, stderr } = await execPromise(ffmpegCommand, { 
+      timeout: 300000, // 5 minutos para fusión
+      maxBuffer: 1024 * 1024 * 50 // 50MB buffer
+    });
+    
+    if (stderr) {
+      console.log('📋 FFmpeg stderr:', stderr);
+    }
+    
+    // Leer el archivo fusionado
+    console.log('📖 Leyendo audio fusionado...');
+    const mergedAudio = await fs.readFile(outputFile);
+    console.log(`✅ Audio fusionado exitosamente: ${mergedAudio.length} bytes`);
+    
+    // Limpiar archivos temporales
+    console.log('🧹 Limpiando archivos temporales...');
+    try {
+      await fs.unlink(concatListFile);
+      await fs.unlink(outputFile);
+      for (const chunkFile of chunkFiles) {
+        await fs.unlink(chunkFile);
+      }
+      console.log('✅ Limpieza completada');
+    } catch (cleanupError) {
+      console.warn('⚠️ Error en limpieza (no crítico):', cleanupError.message);
+    }
+    
+    return mergedAudio;
+    
+  } catch (error) {
+    console.error('❌ Error fusionando chunks con ffmpeg:', error.message);
+    console.log('🔄 Fallback: Intentando fusión simple (puede causar problemas)...');
+    
+    // Fallback: concatenación simple (NO RECOMENDADO para MP3)
+    const totalLength = audioChunks.reduce((sum, chunk) => sum + chunk.length, 0);
+    const mergedBuffer = Buffer.alloc(totalLength);
+    
+    let offset = 0;
+    for (const chunk of audioChunks) {
+      chunk.copy(mergedBuffer, offset);
+      offset += chunk.length;
+    }
+    
+    console.warn('⚠️ Se usó fusión simple - el audio puede tener problemas');
+    return mergedBuffer;
+  }
 }
 
 // Función para síntesis de voz con Google Text-to-Speech
-async function synthesizeSpeech(text, voiceId = 'female', speed = 1.0, useIntelligentPauses = true, title = null) {
+async function synthesizeSpeech(text, voiceId = 'female', speed = 1.0, useIntelligentPauses = true, title = null, progressTracker = null) {
   // Check if API key is configured
   if (!process.env.GOOGLE_TTS_API_KEY) {
     console.error('❌ GOOGLE_TTS_API_KEY no está configurada en las variables de entorno');
     throw new Error('Google TTS API key is not configured. Please set GOOGLE_TTS_API_KEY in your .env file');
   }
 
-  // Very conservative estimation: SSML can be 3x larger than original text due to tags
-  const estimatedSSMLSize = text.length * 3; // Very conservative estimate
+  // Optimización de parámetros para mejor rendimiento
+  const estimatedSSMLSize = text.length * 2.5; // Estimación más realista
+  const MAX_CHUNK_SIZE = 2000; // Chunks más grandes para menos llamadas API
+  const MAX_SSML_SIZE = 4500; // Límite más cercano al real de Google (5000)
   
-  if (estimatedSSMLSize > 4000 || text.length > 1200) {
-    console.log(`📏 Text is potentially long (${text.length} chars, estimated ${Math.round(estimatedSSMLSize)} bytes), splitting into chunks...`);
+  if (estimatedSSMLSize > MAX_SSML_SIZE || text.length > MAX_CHUNK_SIZE) {
+    console.log(`⚡ === OPTIMIZACIÓN DE VELOCIDAD ACTIVADA ===`);
+    console.log(`📏 Texto largo detectado (${text.length} chars, ~${Math.round(estimatedSSMLSize)} bytes SSML)`);
+    console.log(`🚀 Usando chunks optimizados de ${MAX_CHUNK_SIZE} caracteres`);
     
-    const chunks = splitTextIntoChunks(text, 1200); // Much smaller chunks to be very safe
-    console.log(`🔪 Split into ${chunks.length} chunks`);
+    // Inicializar progreso si está disponible
+    if (progressTracker) {
+      progressTracker.startPhase('audio', chunks.length * 8000); // Estimado 8s por chunk
+      progressTracker.updateProgress(5, { detail: 'Preparando síntesis de voz...' });
+    }
+    
+    const chunks = splitTextIntoChunks(text, MAX_CHUNK_SIZE);
+    console.log(`🔪 Dividido en ${chunks.length} chunks (menos llamadas = más rápido)`);
     
     const audioChunks = [];
+    const startTime = Date.now();
     
+    // Procesamiento con rate limiting inteligente y progreso
     for (let i = 0; i < chunks.length; i++) {
-      console.log(`🎤 Processing chunk ${i + 1}/${chunks.length} (${chunks[i].length} chars)...`);
+      const chunkStartTime = Date.now();
+      console.log(`🎤 Procesando chunk ${i + 1}/${chunks.length} (${chunks[i].length} chars)...`);
+      
+      // Actualizar progreso
+      if (progressTracker) {
+        const progress = 10 + ((i / chunks.length) * 80); // 10% inicial + 80% para chunks
+        progressTracker.updateProgress(progress, { 
+          detail: `Sintetizando chunk ${i + 1}/${chunks.length}...` 
+        });
+      }
       
       try {
-        // Only pass title to the first chunk
+        // Solo pasar título al primer chunk
         const chunkTitle = (i === 0) ? title : null;
         const chunkAudio = await synthesizeSingleChunk(chunks[i], voiceId, speed, useIntelligentPauses, chunkTitle);
         audioChunks.push(Buffer.from(chunkAudio));
         
-        // Add a small delay between chunks to avoid rate limiting
+        const chunkTime = Date.now() - chunkStartTime;
+        console.log(`   ✅ Chunk ${i + 1} completado en ${chunkTime}ms`);
+        
+        // Actualizar progreso después del chunk
+        if (progressTracker) {
+          const progress = 10 + (((i + 1) / chunks.length) * 80);
+          progressTracker.updateProgress(progress, { 
+            detail: `Chunk ${i + 1}/${chunks.length} completado (${chunkTime}ms)` 
+          });
+        }
+        
+        // Rate limiting inteligente basado en el tiempo de respuesta
         if (i < chunks.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 100));
+          const delay = Math.max(500, Math.min(2000, chunkTime * 0.3)); // Entre 500ms y 2s
+          console.log(`   ⏳ Esperando ${delay}ms antes del siguiente chunk...`);
+          
+          // Mostrar progreso durante la espera
+          if (progressTracker) {
+            progressTracker.logProgress(`Esperando ${delay}ms antes del siguiente chunk`, { chunkCompleted: i + 1 });
+          }
+          
+          await new Promise(resolve => setTimeout(resolve, delay));
         }
       } catch (error) {
-        console.error(`❌ Error processing chunk ${i + 1}:`, error.message);
-        throw error;
+        console.error(`❌ Error procesando chunk ${i + 1}:`, error.message);
+        
+        // Actualizar progreso con error
+        if (progressTracker) {
+          progressTracker.logProgress(`Error en chunk ${i + 1}, reintentando...`, { error: error.message });
+        }
+        
+        // Retry con backoff exponencial
+        if (error.message.includes('429') || error.message.includes('quota')) {
+          console.log(`🔄 Rate limit detectado, esperando antes de reintentar...`);
+          const retryDelay = Math.min(10000, 1000 * Math.pow(2, i)); // Backoff exponencial
+          
+          if (progressTracker) {
+            progressTracker.updateProgress(10 + ((i / chunks.length) * 80), { 
+              detail: `Rate limit - esperando ${retryDelay}ms...` 
+            });
+          }
+          
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+          
+          // Reintentar una vez
+          try {
+            const chunkTitle = (i === 0) ? title : null;
+            const chunkAudio = await synthesizeSingleChunk(chunks[i], voiceId, speed, useIntelligentPauses, chunkTitle);
+            audioChunks.push(Buffer.from(chunkAudio));
+            console.log(`   ✅ Chunk ${i + 1} completado en reintento`);
+            
+            if (progressTracker) {
+              progressTracker.logProgress(`Chunk ${i + 1} completado en reintento`, { success: true });
+            }
+          } catch (retryError) {
+            console.error(`❌ Error en reintento del chunk ${i + 1}:`, retryError.message);
+            if (progressTracker) {
+              progressTracker.failPhase(retryError);
+            }
+            throw retryError;
+          }
+        } else {
+          if (progressTracker) {
+            progressTracker.failPhase(error);
+          }
+          throw error;
+        }
       }
+    }
+    
+    const totalTime = Date.now() - startTime;
+    console.log(`⚡ Todos los chunks procesados en ${totalTime}ms (${Math.round(totalTime/chunks.length)}ms promedio por chunk)`)
+    
+    // Progreso antes de fusionar
+    if (progressTracker) {
+      progressTracker.updateProgress(95, { detail: 'Fusionando chunks de audio...' });
     }
     
     console.log('🔗 Merging audio chunks...');

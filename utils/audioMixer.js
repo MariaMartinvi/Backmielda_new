@@ -260,8 +260,11 @@ async function mixAudioWithBackground(ttsAudioBase64, musicTrack = 'random', mus
       console.log('🔧 FFmpeg command:', ffmpegCommand);
       
       try {
-        // Set a timeout for the FFmpeg process (2 minutes)
-        const { stdout, stderr } = await execPromise(ffmpegCommand, { timeout: 120000 });
+        // Timeout extendido para historias largas (5 minutos)
+        const { stdout, stderr } = await execPromise(ffmpegCommand, { 
+          timeout: 300000, // 5 minutos para historias largas
+          maxBuffer: 1024 * 1024 * 100 // 100MB buffer para archivos grandes
+        });
         console.log('FFmpeg stderr:', stderr);
         console.log('✅ FFmpeg process completed successfully');
       } catch (error) {
@@ -277,8 +280,11 @@ async function mixAudioWithBackground(ttsAudioBase64, musicTrack = 'random', mus
       console.log('🔧 FFmpeg command:', ffmpegCommand);
       
       try {
-        // Set a timeout for the FFmpeg process (2 minutes)
-        const { stdout, stderr } = await execPromise(ffmpegCommand, { timeout: 120000 });
+        // Timeout extendido para historias largas (5 minutos)
+        const { stdout, stderr } = await execPromise(ffmpegCommand, { 
+          timeout: 300000, // 5 minutos para historias largas
+          maxBuffer: 1024 * 1024 * 100 // 100MB buffer para archivos grandes
+        });
         console.log('FFmpeg stderr:', stderr);
         console.log('✅ FFmpeg process completed successfully');
       } catch (error) {

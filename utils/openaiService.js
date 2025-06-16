@@ -55,11 +55,17 @@ const notifyAdminOfCriticalError = async (errorMessage) => {
 // Export the notification function for use in other modules
 exports.notifyAdminOfCriticalError = notifyAdminOfCriticalError;
 
-exports.generateCompletion = async (prompt, systemMessage, storyParams) => {
+exports.generateCompletion = async (prompt, systemMessage, storyParams, progressTracker = null) => {
   try {
     console.log('\n' + '='.repeat(80));
     console.log('🤖 LLAMADA A OPENAI API - PROMPT COMPLETO');
     console.log('='.repeat(80));
+    
+    // Inicializar progreso si está disponible
+    if (progressTracker) {
+      progressTracker.startPhase('story', 30000); // Estimado 30 segundos
+      progressTracker.updateProgress(5, { detail: 'Configurando parámetros...' });
+    }
     
     console.log('\n📋 PARÁMETROS DE LA HISTORIA:');
     console.log('----------------------------');
@@ -87,6 +93,7 @@ exports.generateCompletion = async (prompt, systemMessage, storyParams) => {
     console.log('Temperatura: 0.7');
     console.log('Max tokens: 2000');
     console.log('Formato de respuesta: JSON (title + content)');
+    console.log('Streaming: Habilitado para progreso en tiempo real');
     
     console.log('\n' + '='.repeat(80));
     console.log('🚀 ENVIANDO SOLICITUD A OPENAI...');
@@ -96,6 +103,11 @@ exports.generateCompletion = async (prompt, systemMessage, storyParams) => {
       throw new Error('OpenAI API key is not configured');
     }
 
+    if (progressTracker) {
+      progressTracker.updateProgress(10, { detail: 'Conectando con OpenAI...' });
+    }
+
+    // Usar streaming para mostrar progreso en tiempo real
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
@@ -104,15 +116,55 @@ exports.generateCompletion = async (prompt, systemMessage, storyParams) => {
       ],
       temperature: 0.7,
       max_tokens: 2000,
-      response_format: { type: "json_object" }
+      response_format: { type: "json_object" },
+      stream: progressTracker ? true : false // Solo stream si hay tracker
     });
 
-    if (!completion.choices || !completion.choices[0] || !completion.choices[0].message) {
-      console.error('❌ Respuesta inválida de OpenAI:', completion);
-      throw new Error('Invalid response from OpenAI API');
+    if (progressTracker) {
+      progressTracker.updateProgress(15, { detail: 'Recibiendo respuesta...' });
     }
 
-    const storyContent = completion.choices[0].message.content;
+    let storyContent = '';
+    
+    // Si es streaming, procesar chunk por chunk
+    if (progressTracker && completion[Symbol.asyncIterator]) {
+      console.log('📡 === STREAMING DE RESPUESTA ACTIVADO ===');
+      let streamProgress = 15;
+      let accumulatedText = '';
+      
+      for await (const chunk of completion) {
+        const content = chunk.choices[0]?.delta?.content || '';
+        if (content) {
+          accumulatedText += content;
+          storyContent += content;
+          
+          // Actualizar progreso basado en tokens recibidos
+          streamProgress = Math.min(90, 15 + (accumulatedText.length / 20)); // Estimación
+          progressTracker.updateProgress(streamProgress, { 
+            detail: `Generando... (${accumulatedText.length} chars)` 
+          });
+          
+          // Stream del texto en tiempo real
+          progressTracker.appendText(content);
+          
+          console.log(`📝 Stream chunk: ${content.length} chars`);
+        }
+      }
+      
+      progressTracker.updateProgress(95, { detail: 'Procesando respuesta...' });
+    } else {
+      // Método tradicional sin streaming
+      storyContent = completion.choices[0].message.content;
+    }
+
+    // Validar respuesta solo si no es streaming
+    if (!progressTracker) {
+      if (!completion.choices || !completion.choices[0] || !completion.choices[0].message) {
+        console.error('❌ Respuesta inválida de OpenAI:', completion);
+        throw new Error('Invalid response from OpenAI API');
+      }
+      storyContent = completion.choices[0].message.content;
+    }
     
     console.log('\n' + '='.repeat(80));
     console.log('✅ RESPUESTA RECIBIDA DE OPENAI');

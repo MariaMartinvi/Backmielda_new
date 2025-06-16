@@ -401,7 +401,7 @@ app._router.stack.forEach(function(r){
 
 // Start server
 const PORT = process.env.PORT || 5001;
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log('Available routes:');
   app._router.stack.forEach(function(r){
@@ -410,3 +410,13 @@ app.listen(PORT, () => {
     }
   });
 });
+
+// Configurar timeouts del servidor para audios largos
+server.timeout = 600000; // 10 minutos
+server.keepAliveTimeout = 650000; // 10 minutos + 50 segundos  
+server.headersTimeout = 660000; // 11 minutos
+
+console.log('⏱️ Server timeouts configured for long audio files:');
+console.log('- Server timeout:', server.timeout, 'ms');
+console.log('- Keep-alive timeout:', server.keepAliveTimeout, 'ms');
+console.log('- Headers timeout:', server.headersTimeout, 'ms');

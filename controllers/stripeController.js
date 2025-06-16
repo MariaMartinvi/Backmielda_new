@@ -131,6 +131,7 @@ const handleSuccess = async (req, res) => {
     // Actualizar información de usuario en Firestore
     const updateData = {
       subscriptionStatus: 'active',
+      isPremium: true,  // ✅ CAMPO CRÍTICO AÑADIDO
       stripeCustomerId: session.customer,
       stripeSubscriptionId: session.subscription,
       monthlyStoriesGenerated: 0, // Reset monthly count when subscription becomes active
@@ -233,6 +234,7 @@ const handleWebhook = async (req, res) => {
       // Actualizar estado de suscripción
       const updateData = {
         subscriptionStatus: 'active',
+        isPremium: true,  // ✅ CAMPO CRÍTICO AÑADIDO
         stripeCustomerId: session.customer,
         stripeSubscriptionId: session.subscription,
         monthlyStoriesGenerated: 0,
@@ -275,6 +277,7 @@ const handleWebhook = async (req, res) => {
       // Actualizar estado de suscripción
       const updateData = {
         subscriptionStatus: subscription.status,
+        isPremium: subscription.status === 'active',  // ✅ CAMPO CRÍTICO AÑADIDO
         stripeSubscriptionId: subscription.id,
         monthlyStoriesGenerated: 0,
         lastMonthReset: new Date(),
@@ -314,6 +317,7 @@ const handleWebhook = async (req, res) => {
       // Actualizar estado de suscripción
       const updateData = {
         subscriptionStatus: 'cancelled',
+        isPremium: false,  // ✅ CAMPO CRÍTICO AÑADIDO
         stripeSubscriptionId: null,
         subscriptionEndDate: new Date(),
         updatedAt: new Date()
@@ -337,9 +341,77 @@ const handleWebhook = async (req, res) => {
   }
 };
 
+// Función para corregir manualmente un usuario premium
+const fixPremiumUser = async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ error: 'Email requerido' });
+    }
+
+    console.log('🔧 CORRIGIENDO USUARIO PREMIUM:', email);
+
+    // Buscar usuario por email
+    const usersRef = db.collection('users');
+    const userQuery = await usersRef.where('email', '==', email).get();
+    
+    if (userQuery.empty) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    const userDoc = userQuery.docs[0];
+    const userRef = userDoc.ref;
+    const userData = userDoc.data();
+
+    console.log('👤 USUARIO ENCONTRADO:', {
+      email: userData.email,
+      currentStatus: userData.subscriptionStatus,
+      currentPremium: userData.isPremium,
+      stripeCustomerId: userData.stripeCustomerId
+    });
+
+    // Si tiene stripeCustomerId, significa que pagó
+    if (userData.stripeCustomerId) {
+      const updateData = {
+        subscriptionStatus: 'active',
+        isPremium: true,
+        updatedAt: new Date()
+      };
+      
+      await userRef.update(updateData);
+      
+      console.log('✅ USUARIO CORREGIDO:', {
+        email: userData.email,
+        subscriptionStatus: 'active',
+        isPremium: true
+      });
+
+      res.json({
+        success: true,
+        message: 'Usuario corregido exitosamente',
+        user: {
+          email: userData.email,
+          subscriptionStatus: 'active',
+          isPremium: true,
+          stripeCustomerId: userData.stripeCustomerId
+        }
+      });
+    } else {
+      res.status(400).json({ 
+        error: 'Usuario no tiene Stripe Customer ID - no ha pagado' 
+      });
+    }
+  } catch (error) {
+    console.error('🔴 ERROR CORRIGIENDO USUARIO:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
 // Exportar todos los controladores
 module.exports = {
   createCheckoutSession,
   handleSuccess,
-  handleWebhook
+  handleWebhook,
+  fixPremiumUser
 };
