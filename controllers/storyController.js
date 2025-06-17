@@ -631,7 +631,7 @@ exports.generateAudio = async (req, res, next) => {
     console.log(`🎤 [DEBUG] Generating TTS for text: "${contentWithoutTitle.substring(0, 100)}..."`);
     console.log(`🎤 [DEBUG] Voice: ${voiceId || 'female'}, Speed: ${speechRate || 1.0}`);
     
-    const audioData = await googleTtsService.synthesizeSpeech(
+    const audioData = await getGoogleTtsService().synthesizeSpeech(
       contentWithoutTitle,  // Content without title
       voiceId || 'female',
       speechRate || 0.8,  // Changed default from 1.0 to 0.8 (new normal speed)
@@ -662,7 +662,7 @@ exports.generateAudio = async (req, res, next) => {
       console.log(`🎵 Using background music track: ${usedMusicTrack}`);
       
       // Mix with background music - this returns base64 string, not Buffer
-      const mixedAudioBase64 = await mixAudioWithBackground(
+      const mixedAudioBase64 = await getAudioMixer().mixAudioWithBackground(
         audioData,
         usedMusicTrack,
         0.1  // Fixed volume at 10%
@@ -1127,7 +1127,7 @@ async function generateStoryImage(title) {
     try {
         console.log('🎨 Generating image for story title:', title);
         const prompt = `Create a children's storybook illustration for the title "${title}". Style: vintage storybook, warm colors, detailed but child-friendly. IMPORTANT: NO TEXT OR WORDS should appear in the image - only visual elements like characters, scenery, and objects. Pure illustration without any written text, letters, or captions.`;
-        const response = await openaiService.generateImage(prompt);
+        const response = await getOpenaiService().generateImage(prompt);
         
         if (!response.data || !response.data[0] || !response.data[0].url) {
             throw new Error('Invalid response from image generation service');
@@ -1405,7 +1405,7 @@ exports.publishStory = async (req, res) => {
                 console.log(`🎤 [PUBLISH] Generating audio with: voice="${voiceToUse}", speed=${speechRate}, music="${musicTrack}"`);
                 
                 // Generate TTS audio
-                const ttsAudioContent = await googleTtsService.synthesizeSpeech(
+                const ttsAudioContent = await getGoogleTtsService().synthesizeSpeech(
                     story.content,
                     voiceToUse,
                     speechRate,
@@ -1420,7 +1420,7 @@ exports.publishStory = async (req, res) => {
                     finalAudioContent = ttsAudioContent;
                 } else {
                     console.log(`🎵 [PUBLISH] Mixing with background music: ${musicTrack}`);
-                    const mixedAudioBase64 = await mixAudioWithBackground(
+                    const mixedAudioBase64 = await getAudioMixer().mixAudioWithBackground(
                         ttsAudioContent,
                         musicTrack,
                         musicVolume
@@ -1807,7 +1807,7 @@ exports.testPublishProcess = async (req, res) => {
         try {
             const openaiService = require('../utils/openaiService');
             // Just check if the service is properly configured
-            if (!openaiService.generateImage) {
+            if (!getOpenaiService().generateImage) {
                 throw new Error('OpenAI service not properly configured');
             }
             testResults.step3_openaiAccess = { success: true, data: { serviceAvailable: true } };
@@ -1843,7 +1843,7 @@ exports.testPublishProcess = async (req, res) => {
             } else {
                 // Story needs audio, test TTS service
                 const googleTtsService = require('../utils/googleTtsService');
-                if (!googleTtsService.synthesizeSpeech) {
+                if (!getGoogleTtsService().synthesizeSpeech) {
                     throw new Error('TTS service not properly configured');
                 }
                 testResults.step5_ttsService = { success: true, data: { serviceAvailable: true } };

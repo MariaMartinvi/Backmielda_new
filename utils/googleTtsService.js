@@ -470,11 +470,12 @@ async function synthesizeSpeech(text, voiceId = 'female', speed = 1.0, useIntell
 
   // 🚀 OPTIMIZACIÓN DE PARÁMETROS PARA MÁXIMA VELOCIDAD
   const estimatedSSMLSize = text.length * 2.5; // Estimación más realista
-  const MAX_CHUNK_SIZE = 2800; // 🔧 CHUNKS ESTABLES para confiabilidad en publicación
+  const MAX_CHUNK_SIZE = 4500; // 🔧 AUMENTADO - solo dividir textos realmente largos
   const MAX_SSML_SIZE = 4500; // Límite más cercano al real de Google (5000)
   const MAX_PARALLEL_CHUNKS = 4; // 🔧 PARALELIZACIÓN ESTABLE para publicación
   
-  if (estimatedSSMLSize > MAX_SSML_SIZE || text.length > MAX_CHUNK_SIZE) {
+  // Solo usar modo turbo para textos realmente largos (>5000 caracteres)
+  if (text.length > 5000) {
     console.log(`⚡ === MODO TURBO ACTIVADO - PROCESAMIENTO PARALELO ===`);
     console.log(`📏 Texto largo detectado (${text.length} chars, ~${Math.round(estimatedSSMLSize)} bytes SSML)`);
     console.log(`🚀 Usando chunks optimizados de ${MAX_CHUNK_SIZE} caracteres`);
@@ -557,10 +558,10 @@ async function synthesizeSpeech(text, voiceId = 'female', speed = 1.0, useIntell
           });
         }
         
-        // 🔧 RATE LIMITING ESTABLE para confiabilidad en publicación
+        // 🔧 RATE LIMITING OPTIMIZADO para velocidad
         if (batchEnd < chunks.length) {
-          const batchDelay = 600; // 🔧 DELAY ESTABLE entre lotes para publicación
-          console.log(`   🔧 Esperando ${batchDelay}ms para estabilidad antes del siguiente lote...`);
+          const batchDelay = 200; // 🔧 REDUCIDO - solo prevenir rate limits
+          console.log(`   🔧 Esperando ${batchDelay}ms antes del siguiente lote...`);
           await new Promise(resolve => setTimeout(resolve, batchDelay));
         }
         
@@ -575,8 +576,9 @@ async function synthesizeSpeech(text, voiceId = 'female', speed = 1.0, useIntell
     
     const totalTime = Date.now() - startTime;
     const avgTimePerChunk = Math.round(totalTime / chunks.length);
+    const chunksPerSecond = Math.round((chunks.length / (totalTime / 1000)) * 100) / 100;
     console.log(`⚡ TURBO MODE COMPLETADO: ${chunks.length} chunks en ${totalTime}ms (${avgTimePerChunk}ms promedio)`);
-    console.log(`🚀 Velocidad: ${Math.round(chunks.length / (totalTime / 1000))} chunks/segundo`);
+    console.log(`🚀 Velocidad: ${chunksPerSecond} chunks/segundo`);
     
     // Progreso antes de fusionar
     if (progressTracker) {

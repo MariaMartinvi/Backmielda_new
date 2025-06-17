@@ -1,6 +1,6 @@
 // controllers/audioController.js
 const googleTtsService = require('../utils/googleTtsService');
-const { mixAudioWithBackground, getRandomMusicTrack, BACKGROUND_MUSIC_TRACKS } = require('../utils/audioMixer');
+const { mixAudioWithBackground, prepareMusicTrack, mixWithPreparedMusic, getRandomMusicTrack, BACKGROUND_MUSIC_TRACKS } = require('../utils/audioMixer');
 const storyService = require('../services/storyService');
 const { admin } = require('../config/firebase');
 const fs = require('fs').promises;
@@ -43,37 +43,52 @@ exports.generateAudio = async (req, res, next) => {
       });
     }
     
-    // Generate audio using TTS service with intelligent pauses automatically applied
-    const audioData = await googleTtsService.synthesizeSpeech(
-      text,
-      voiceId || 'female',
-      speechRate || 0.8,  // Changed default from 1.0 to 0.8 (new normal speed)
-      true,  // useIntelligentPauses
-      title  // Pass the title for automatic pause detection
-    );
+    // 🚀 OPTIMIZACIÓN: Preparar música en paralelo mientras se genera TTS
+    const shouldMixMusic = musicTrack !== 'none';
+    const usedMusicTrack = musicTrack || 'random';
+    
+    let audioData, preparedMusic;
+    
+    if (shouldMixMusic) {
+      console.log('🚀 INICIANDO PIPELINE PARALELO: TTS + Preparación de Música');
+      // Ejecutar TTS y preparación de música en paralelo
+      [audioData, preparedMusic] = await Promise.all([
+        googleTtsService.synthesizeSpeech(
+          text,
+          voiceId || 'female',
+          speechRate || 0.8,
+          true,  // useIntelligentPauses
+          title  // Pass the title for automatic pause detection
+        ),
+        prepareMusicTrack(usedMusicTrack)
+      ]);
+      console.log('✅ PIPELINE PARALELO COMPLETADO');
+    } else {
+      console.log('🔇 No background music requested, generating TTS only');
+      audioData = await googleTtsService.synthesizeSpeech(
+        text,
+        voiceId || 'female',
+        speechRate || 0.8,
+        true,  // useIntelligentPauses
+        title
+      );
+    }
 
     let finalAudioData;
-    let usedMusicTrack = musicTrack;
     
-    // Verificar explícitamente si musicTrack es exactamente "none"
-    if (musicTrack === 'none') {
-      console.log('🔇 No background music requested, using TTS audio only');
-      finalAudioData = audioData;  // This is a Buffer
-    } else {
-      // Use the specified track or random if not specified
-      usedMusicTrack = musicTrack || 'random';
-      console.log(`🎵 Using background music track: ${usedMusicTrack}`);
-      
-      // Mix with background music - this returns base64 string
-      const mixedAudioBase64 = await mixAudioWithBackground(
+    if (shouldMixMusic && preparedMusic.available) {
+      console.log('🎵 Usando mixing optimizado con música pre-preparada');
+      // Mix using prepared music (faster)
+      const mixedAudioBase64 = await mixWithPreparedMusic(
         audioData,
-        usedMusicTrack,
+        preparedMusic,
         musicVolume !== undefined ? musicVolume : 0.1
       );
-      
-      // Convert base64 string back to Buffer for consistency
       finalAudioData = Buffer.from(mixedAudioBase64, 'base64');
       console.log(`🎵 [DEBUG] Converted mixed audio to Buffer, size: ${finalAudioData.length} bytes`);
+    } else {
+      console.log('🔇 Using TTS audio only (no music or music unavailable)');
+      finalAudioData = audioData;  // This is a Buffer
     }
     
     // Save the generated audio data temporarily with the story (for use during publish)

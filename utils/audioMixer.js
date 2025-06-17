@@ -152,6 +152,163 @@ async function getRandomMusicTrack() {
 }
 
 /**
+ * NUEVO: Preparar música de fondo en paralelo mientras se genera TTS
+ * @param {string} musicTrack - Background music track name or "random" for a random track
+ * @returns {Promise<object>} - Prepared music info
+ */
+async function prepareMusicTrack(musicTrack = 'random') {
+  console.log('🎵 PREPARANDO MÚSICA EN PARALELO...');
+  console.log(`🎶 Track solicitado: ${musicTrack}`);
+  
+  try {
+    // Check if FFmpeg is available
+    const ffmpegIsAvailable = await checkFFmpegAvailability();
+    if (!ffmpegIsAvailable) {
+      console.log('⚠️ FFmpeg no disponible - mixing deshabilitado');
+      return { available: false, reason: 'ffmpeg_unavailable' };
+    }
+    
+    // Handle special case
+    if (musicTrack === 'none') {
+      console.log('🔇 No se requiere música de fondo');
+      return { available: false, reason: 'no_music_requested' };
+    }
+    
+    // If musicTrack is 'random', pick a random track
+    if (musicTrack === 'random') {
+      musicTrack = await getRandomMusicTrack();
+      console.log('🎲 Track aleatorio seleccionado:', musicTrack);
+    }
+    
+    // Validate music file exists
+    const musicPath = path.join(BACKGROUND_MUSIC_DIR, BACKGROUND_MUSIC_TRACKS[musicTrack]);
+    
+    try {
+      await fs.access(musicPath);
+      console.log('✅ Archivo de música validado:', musicPath);
+    } catch (error) {
+      console.error('❌ Archivo de música no encontrado:', musicPath);
+      return { available: false, reason: 'music_file_not_found', track: musicTrack };
+    }
+    
+    // Create temporary directory if needed
+    const tempDir = path.join(__dirname, '../temp');
+    await fs.mkdir(tempDir, { recursive: true });
+    
+    console.log('✅ Preparación de música completada');
+    return {
+      available: true,
+      track: musicTrack,
+      musicPath: musicPath,
+      tempDir: tempDir,
+      ffmpegAvailable: true
+    };
+    
+  } catch (error) {
+    console.error('❌ Error preparando música:', error);
+    return { available: false, reason: 'preparation_error', error: error.message };
+  }
+}
+
+/**
+ * NUEVO: Mixing optimizado con música pre-preparada
+ * @param {string} ttsAudioBase64 - Base64 encoded TTS audio
+ * @param {object} preparedMusic - Prepared music info from prepareMusicTrack()
+ * @param {number} musicVolume - Background music volume (0-1)
+ * @returns {Promise<string>} - Base64 encoded mixed audio
+ */
+async function mixWithPreparedMusic(ttsAudioBase64, preparedMusic, musicVolume = 0.1) {
+  try {
+    console.log('--------------------------------------------------');
+    console.log('🚀 MIXING CON MÚSICA PRE-PREPARADA 🚀');
+    console.log(`🎶 Track: ${preparedMusic.track}`);
+    console.log(`🔊 Volumen: ${musicVolume}`);
+    
+    const startTime = Date.now();
+    
+    // Check if music is available
+    if (!preparedMusic.available) {
+      console.log(`⚠️ Música no disponible: ${preparedMusic.reason}`);
+      console.log('--------------------------------------------------');
+      return ttsAudioBase64;
+    }
+    
+    console.log('TTS audio length (base64):', ttsAudioBase64.length);
+
+    // Generate unique filenames
+    const timestamp = Date.now();
+    const ttsAudioPath = path.join(preparedMusic.tempDir, `tts-${timestamp}.mp3`);
+    const outputPath = path.join(preparedMusic.tempDir, `mixed-${timestamp}.mp3`);
+
+    console.log('Paths:');
+    console.log('- TTS audio file:', ttsAudioPath);
+    console.log('- Music file:', preparedMusic.musicPath);
+    console.log('- Output file:', outputPath);
+
+    // Write TTS audio to temporary file
+    const ttsAudioBuffer = Buffer.from(ttsAudioBase64, 'base64');
+    await fs.writeFile(ttsAudioPath, ttsAudioBuffer);
+    console.log(`✅ TTS audio escrito (${ttsAudioBuffer.length} bytes)`);
+
+    // OPTIMIZED FFmpeg command (ya validado en preparación)
+    console.log('🚀 Ejecutando mixing optimizado...');
+    
+    const ffmpegCommand = `"${FFMPEG_PATHS.ffmpeg}" -y ` +
+      `-i "${ttsAudioPath}" ` +
+      `-stream_loop -1 -i "${preparedMusic.musicPath}" ` +
+      `-filter_complex "` +
+        `[1:a]volume=${musicVolume}[m];` +
+        `[0:a][m]amix=inputs=2:dropout_transition=0:duration=first` +
+      `" ` +
+      `-c:a libmp3lame -q:a 6 -ac 2 ` +
+      `"${outputPath}"`;
+    
+    console.log('🔧 Comando FFmpeg:', ffmpegCommand);
+    
+    try {
+      const { stdout, stderr } = await execPromise(ffmpegCommand, { 
+        timeout: 180000,
+        maxBuffer: 1024 * 1024 * 50
+      });
+      
+      if (stderr) {
+        console.log('FFmpeg stderr:', stderr);
+      }
+      console.log('✅ FFmpeg completado exitosamente');
+    } catch (error) {
+      console.error('❌ Error FFmpeg:', error);
+      console.log('⚠️ Devolviendo audio original');
+      return ttsAudioBase64;
+    }
+
+    // Read mixed audio
+    const mixedAudio = await fs.readFile(outputPath);
+    console.log('📊 Audio mezclado:', mixedAudio.length, 'bytes');
+    
+    const mixedAudioBase64 = mixedAudio.toString('base64');
+
+    // Cleanup async
+    const cleanupPromises = [
+      fs.unlink(ttsAudioPath).catch(() => {}),
+      fs.unlink(outputPath).catch(() => {})
+    ];
+    
+    Promise.all(cleanupPromises).then(() => {
+      console.log('🧹 Archivos temporales limpiados');
+    }).catch(() => {});
+
+    const totalTime = Date.now() - startTime;
+    console.log(`✅ MIXING OPTIMIZADO COMPLETADO en ${totalTime}ms`);
+    console.log('--------------------------------------------------');
+    return mixedAudioBase64;
+  } catch (error) {
+    console.error('❌ ERROR EN MIXING OPTIMIZADO:', error);
+    console.log('--------------------------------------------------');
+    return ttsAudioBase64;
+  }
+}
+
+/**
  * OPTIMIZED VERSION - Mix TTS audio with background music using faster techniques
  * @param {string} ttsAudioBase64 - Base64 encoded TTS audio
  * @param {string} musicTrack - Background music track name or "random" for a random track
@@ -314,5 +471,7 @@ module.exports = {
   getRandomMusicTrack,
   checkFFmpegAvailability,
   resetFFmpegCache,
-  BACKGROUND_MUSIC_TRACKS
+  BACKGROUND_MUSIC_TRACKS,
+  prepareMusicTrack,
+  mixWithPreparedMusic
 }; 
