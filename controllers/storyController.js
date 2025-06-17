@@ -411,9 +411,9 @@ Escribe la historia en español.`;
         wordCount: story.content.split(' ').length
       });
       progressTracker.complete({
-      story: savedStory.toObject(),
-      storiesRemaining: await getStoriesRemaining(user)
-    });
+        story: savedStory.toObject(),
+        storiesRemaining: await getStoriesRemaining(user)
+      });
     }
 
     console.log('✅ Story generation complete');
@@ -427,6 +427,116 @@ Escribe la historia en español.`;
     if (enableStreaming && storyId) {
       response.streamId = storyId;
     }
+    
+        } catch (error) {
+          console.error('❌ [STREAMING] Error during background generation:', error);
+          if (progressTracker) {
+            progressTracker.failPhase(error);
+          }
+        }
+      }, 100); // 100ms delay
+      
+      return;
+    }
+
+    // Non-streaming mode - generate normally
+    console.log('📝 [NON-STREAMING] Generating story normally...');
+    const story = await openaiService.generateCompletion(prompt, systemMessage, req.body);
+
+    if (!story || !story.content) {
+      console.error('❌ No story content received from OpenAI');
+      return res.status(500).json({ error: 'Failed to generate story content' });
+    }
+
+    // Extract title from the story content
+    const extractedTitle = extractTitle(story.content, topic, language);
+    const title = typeof extractedTitle === 'object' ? extractedTitle.title : extractedTitle;
+    
+    // Include title in the content for audio generation
+    const contentWithTitle = `${story.title}\n\n${story.content}`;
+    
+    console.log('📑 Generated story:', {
+      title: story.title,
+      contentLength: story.content.length,
+      contentWithTitleLength: contentWithTitle.length
+    });
+
+    // Save to database
+    console.log('💾 Saving story to database...');
+    const savedStory = await storyService.create({
+      title: story.title,
+      content: contentWithTitle,  // Save content with title included
+      email,  // Guardar el email del usuario
+      user: user.uid,  // Associate with Firebase user UID
+      language: normalizedLanguage,  // Save normalized language
+      ageGroup: ageGroup,  // Save age group
+      englishLevel: englishLevel,  // Save English level
+      spanishLevel: spanishLevel,  // Save Spanish level
+      storyType: storyType,  // Save story type
+      storyLength: storyLength,  // Save story length
+      childNames: childNames,  // Save child names
+    });
+
+    
+    // Update user story counts (skip for admins)
+    console.log('🔍 [DEBUG-PREMIUM-COUNTER] Checking user before updating counters:', {
+      email: user.email,
+      isAdmin: user.isAdmin,
+      subscriptionStatus: user.subscriptionStatus,
+      currentStoriesGenerated: user.storiesGenerated,
+      currentMonthlyStoriesGenerated: user.monthlyStoriesGenerated
+    });
+    
+    if (!user.isAdmin) {
+      console.log('👤 Updating user story counts in Firestore...');
+      console.log('📊 [DEBUG-PREMIUM-COUNTER] INCREMENTING counters for non-admin user');
+      
+      // 🔧 FIX: Obtener valores actuales de Firestore antes del incremento
+      const userRef = db.collection('users').doc(user.uid);
+      const userSnapshot = await userRef.get();
+      const currentUserData = userSnapshot.data();
+      
+      console.log('🔍 [FIX] Valores actuales en Firestore:', {
+        storiesGenerated: currentUserData.storiesGenerated,
+        monthlyStoriesGenerated: currentUserData.monthlyStoriesGenerated
+      });
+      
+      // 🔧 FIX: Usar valores de Firestore en lugar del objeto local
+      const newStoriesGenerated = (currentUserData.storiesGenerated || 0) + 1;
+      const newMonthlyStoriesGenerated = (currentUserData.monthlyStoriesGenerated || 0) + 1;
+      
+      console.log('📊 [FIX] Nuevos valores calculados:', {
+        newStoriesGenerated,
+        newMonthlyStoriesGenerated
+      });
+      
+      // Update in Firestore with fixed values
+      await userRef.update({
+        storiesGenerated: newStoriesGenerated,
+        monthlyStoriesGenerated: newMonthlyStoriesGenerated,
+        updatedAt: new Date()
+      });
+      
+      // Update local user object for immediate use
+      user.storiesGenerated = newStoriesGenerated;
+      user.monthlyStoriesGenerated = newMonthlyStoriesGenerated;
+      
+      console.log('✅ User story counts updated in Firestore');
+      console.log('📊 [DEBUG-PREMIUM-COUNTER] NEW counters:', {
+        storiesGenerated: user.storiesGenerated,
+        monthlyStoriesGenerated: user.monthlyStoriesGenerated
+      });
+    } else {
+      console.log('👑 Admin user - skipping story count increment');
+      console.log('⚠️ [DEBUG-PREMIUM-COUNTER] SKIPPING counter increment because user.isAdmin = true');
+    }
+
+    console.log('✅ Story generation complete');
+    
+    const response = {
+      story: savedStory.toObject(),
+      storiesRemaining: await getStoriesRemaining(user)
+    };
     
     res.json(response);
   } catch (error) {
