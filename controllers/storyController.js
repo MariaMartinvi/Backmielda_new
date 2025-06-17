@@ -2,16 +2,42 @@
 const storyService = require('../services/storyService');
 // TEMPORARILY DISABLED - const audioService = require('../services/audioService');
 const { auth } = require('../middleware/auth');
-const openaiService = require('../utils/openaiService');
-const googleTtsService = require('../utils/googleTtsService');
-const { mixAudioWithBackground, getRandomMusicTrack, BACKGROUND_MUSIC_TRACKS } = require('../utils/audioMixer');
 const { constructPrompt, extractTitle } = require('../utils/helpers');
 const { admin, db } = require('../config/firebase');
 const { createProgressTracker } = require('../utils/progressTracker');
 const fs = require('fs').promises;
 const path = require('path');
-// const sharp = require('sharp'); // No longer needed with Fal.ai optimized images
-console.log("OpenAI API Key:", process.env.OPENAI_API_KEY ? "Configurada (primeros caracteres: " + process.env.OPENAI_API_KEY.substring(0, 5) + "...)" : "No configurada");
+
+// Lazy loading for heavy services to prevent startup blocking
+let openaiService = null;
+let googleTtsService = null;
+let audioMixer = null;
+
+const getOpenaiService = () => {
+  if (!openaiService) {
+    openaiService = require('../utils/openaiService');
+  }
+  return openaiService;
+};
+
+const getGoogleTtsService = () => {
+  if (!googleTtsService) {
+    googleTtsService = require('../utils/googleTtsService');
+  }
+  return googleTtsService;
+};
+
+const getAudioMixer = () => {
+  if (!audioMixer) {
+    audioMixer = require('../utils/audioMixer');
+  }
+  return audioMixer;
+};
+
+// Log OpenAI API key asynchronously
+setImmediate(() => {
+  console.log("OpenAI API Key:", process.env.OPENAI_API_KEY ? "Configurada (primeros caracteres: " + process.env.OPENAI_API_KEY.substring(0, 5) + "...)" : "No configurada");
+});
 
 // Use Firebase instances from config
 let bucket = null;
@@ -312,7 +338,7 @@ Escribe la historia en español.`;
       setTimeout(async () => {
         try {
           console.log('🚀 [STREAMING] Iniciando generación en background...');
-          const story = await openaiService.generateCompletion(prompt, systemMessage, req.body, progressTracker);
+          const story = await getOpenaiService().generateCompletion(prompt, systemMessage, req.body, progressTracker);
 
     if (!story || !story.content) {
       console.error('❌ No story content received from OpenAI');
@@ -441,7 +467,7 @@ Escribe la historia en español.`;
 
     // Non-streaming mode - generate normally
     console.log('📝 [NON-STREAMING] Generating story normally...');
-    const story = await openaiService.generateCompletion(prompt, systemMessage, req.body);
+    const story = await getOpenaiService().generateCompletion(prompt, systemMessage, req.body);
 
     if (!story || !story.content) {
       console.error('❌ No story content received from OpenAI');
@@ -926,7 +952,7 @@ exports.healthCheck = async (req, res) => {
   
   // Check OpenAI API connection using our enhanced status check
   try {
-    const openaiStatus = await openaiService.checkOpenAIStatus();
+    const openaiStatus = await getOpenaiService().checkOpenAIStatus();
     console.log('OpenAI API status check result:', openaiStatus);
     
     // Map OpenAI status to our health check format
@@ -943,7 +969,7 @@ exports.healthCheck = async (req, res) => {
       
       // Notify admin about quota issues
       try {
-        await openaiService.notifyAdminOfCriticalError('OpenAI API quota exceeded detected during health check');
+        await getOpenaiService().notifyAdminOfCriticalError('OpenAI API quota exceeded detected during health check');
       } catch (notifyError) {
         console.error('Failed to notify admin:', notifyError);
       }
