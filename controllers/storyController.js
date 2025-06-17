@@ -560,13 +560,15 @@ exports.generateAudio = async (req, res, next) => {
     let finalAudioData;
     let usedMusicTrack = musicTrack;
     
-    // Verificar explícitamente si musicTrack es exactamente "none"
-    if (musicTrack === 'none') {
-      console.log('🔇 No background music requested, using TTS audio only');
-      finalAudioData = audioData;
-      console.log(`🔇 [DEBUG] Final audio (no music) size: ${finalAudioData.length} bytes`);
+    // OPTIMIZATION: Add option to skip mixing for faster audio generation
+    const skipMixing = req.body.skipMixing || (musicTrack === 'none');
+    
+    if (skipMixing) {
+      console.log('🚀 FAST MODE: Skipping audio mixing for faster generation');
+      finalAudioData = audioData;  // Use TTS audio directly
+      usedMusicTrack = 'none';
     } else {
-      // Use the specified track or random if not specified
+      // Mix with background music
       usedMusicTrack = musicTrack || 'random';
       console.log(`🎵 Using background music track: ${usedMusicTrack}`);
       
