@@ -83,7 +83,7 @@ exports.generateStory = async (req, res, next) => {
       
       // Iniciar fase de generación de historia
       progressTracker.startPhase('story', 45000); // Estimado 45 segundos
-      progressTracker.updateProgress(5, { detail: 'Iniciando generación...' });
+      progressTracker.updateProgress(0, { detail: 'Generando historia' });
     }
 
     console.log('👤 Story parameters:', {

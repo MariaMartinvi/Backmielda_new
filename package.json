@@ -12,7 +12,10 @@
     "build": "./render-build.sh",
     "install-ffmpeg": "node scripts/install-ffmpeg.js",
     "test-music": "node scripts/test-production-music.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "cleanup:audio:dry": "node scripts/cleanup-corrupted-audio.js --dry-run",
+    "cleanup:audio": "node scripts/cleanup-corrupted-audio.js",
+    "cleanup:audio:force": "node scripts/cleanup-corrupted-audio.js --force"
   },
   "keywords": [],
   "author": "",

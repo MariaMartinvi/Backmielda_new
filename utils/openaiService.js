@@ -64,7 +64,7 @@ exports.generateCompletion = async (prompt, systemMessage, storyParams, progress
     // Inicializar progreso si está disponible
     if (progressTracker) {
       progressTracker.startPhase('story', 30000); // Estimado 30 segundos
-      progressTracker.updateProgress(5, { detail: 'Configurando parámetros...' });
+      progressTracker.updateProgress(0, { detail: 'Generando historia' });
     }
     
     console.log('\n📋 PARÁMETROS DE LA HISTORIA:');
@@ -104,7 +104,7 @@ exports.generateCompletion = async (prompt, systemMessage, storyParams, progress
     }
 
     if (progressTracker) {
-      progressTracker.updateProgress(10, { detail: 'Conectando con OpenAI...' });
+              progressTracker.updateProgress(0, { detail: 'Generando historia' });
     }
 
     // Usar streaming para mostrar progreso en tiempo real
@@ -121,7 +121,7 @@ exports.generateCompletion = async (prompt, systemMessage, storyParams, progress
     });
 
     if (progressTracker) {
-      progressTracker.updateProgress(15, { detail: 'Recibiendo respuesta...' });
+              progressTracker.updateProgress(0, { detail: 'Generando historia' });
     }
 
     let storyContent = '';
@@ -151,7 +151,7 @@ exports.generateCompletion = async (prompt, systemMessage, storyParams, progress
         }
       }
       
-      progressTracker.updateProgress(95, { detail: 'Procesando respuesta...' });
+              progressTracker.updateProgress(0, { detail: 'Generando historia' });
     } else {
       // Método tradicional sin streaming
       storyContent = completion.choices[0].message.content;

@@ -54,14 +54,14 @@ class ProgressTracker extends EventEmitter {
         const elapsed = Date.now() - this.phases[this.currentPhase].startTime;
         const eta = this.calculateETA(progress, elapsed);
         
-        console.log(`📈 ${this.phases[this.currentPhase].name}: ${progress.toFixed(1)}% (${details.detail || 'procesando...'})`);
+        console.log(`📈 Generando historia`);
         
         this.emit('progressUpdate', {
           storyId: this.storyId,
           phase: this.currentPhase,
-          phaseName: this.phases[this.currentPhase].name,
-          progress: progress,
-          details: details,
+          phaseName: 'Generando historia',
+          progress: 0, // No mostrar porcentaje
+          details: { detail: 'Generando historia' }, // Solo mensaje simple
           elapsed: elapsed,
           eta: eta,
           timestamp: Date.now()
