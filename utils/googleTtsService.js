@@ -659,7 +659,7 @@ async function synthesizeSingleChunk(text, voiceId = 'female', speed = 1.0, useI
        audioConfig: {
          audioEncoding: 'MP3',
          speakingRate: speed,
-         volumeGainDb: 2.0
+         volumeGainDb: 2.0 // MANTENER CALIDAD CHIRP3 HD - sin degradar sample rate
        }
      };
   } else {
@@ -689,7 +689,7 @@ async function synthesizeSingleChunk(text, voiceId = 'female', speed = 1.0, useI
       audioConfig: {
         audioEncoding: 'MP3',
         speakingRate: speed,
-        volumeGainDb: 2.0
+        volumeGainDb: 2.0 // MANTENER CALIDAD CHIRP3 HD - sin degradar sample rate  
       }
     };
   }

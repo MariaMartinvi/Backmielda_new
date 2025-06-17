@@ -253,6 +253,7 @@ async function mixWithPreparedMusic(ttsAudioBase64, preparedMusic, musicVolume =
     // OPTIMIZED FFmpeg command (ya validado en preparación)
     console.log('🚀 Ejecutando mixing optimizado...');
     
+    // ULTRA-SPEED: Máxima velocidad sacrificando calidad
     const ffmpegCommand = `"${FFMPEG_PATHS.ffmpeg}" -y ` +
       `-i "${ttsAudioPath}" ` +
       `-stream_loop -1 -i "${preparedMusic.musicPath}" ` +
@@ -260,16 +261,16 @@ async function mixWithPreparedMusic(ttsAudioBase64, preparedMusic, musicVolume =
         `[1:a]volume=${musicVolume}[m];` +
         `[0:a][m]amix=inputs=2:dropout_transition=0:duration=first` +
       `" ` +
-      `-c:a libmp3lame -q:a 6 -ac 2 ` +
+      `-c:a libmp3lame -preset fast -b:a 96k -ac 2 ` + // EQUILIBRADO: buena calidad para Chirp3 HD, velocidad optimizada
       `"${outputPath}"`;
     
-    console.log('🔧 Comando FFmpeg:', ffmpegCommand);
+    console.log('🔧 Comando FFmpeg ULTRA-OPTIMIZADO:', ffmpegCommand);
     
-    try {
-      const { stdout, stderr } = await execPromise(ffmpegCommand, { 
-        timeout: 180000,
-        maxBuffer: 1024 * 1024 * 50
-      });
+          try {
+        const { stdout, stderr } = await execPromise(ffmpegCommand, { 
+          timeout: 60000, // REDUCIDO: de 3min a 1min máximo para mixing
+          maxBuffer: 1024 * 1024 * 20 // REDUCIDO: buffer más pequeño para archivos más pequeños
+        });
       
       if (stderr) {
         console.log('FFmpeg stderr:', stderr);
@@ -396,17 +397,17 @@ async function mixAudioWithBackground(ttsAudioBase64, musicTrack = 'random', mus
         `[1:a]volume=${musicVolume}[m];` +
         `[0:a][m]amix=inputs=2:dropout_transition=0:duration=first` +
       `" ` +
-      `-c:a libmp3lame -q:a 6 -ac 2 ` + // Faster encoding with q:a 6 instead of 4
+      `-c:a libmp3lame -preset fast -b:a 96k -ac 2 ` + // EQUILIBRADO: buena calidad para Chirp3 HD, velocidad optimizada
       `"${outputPath}"`;
     
-    console.log('🔧 Optimized FFmpeg command:', ffmpegCommand);
+    console.log('🔧 Ultra-Fast FFmpeg command:', ffmpegCommand);
     
-    try {
-      // Reduced timeout for faster operation
-      const { stdout, stderr } = await execPromise(ffmpegCommand, { 
-        timeout: 180000, // Reduced from 5 minutes to 3 minutes
-        maxBuffer: 1024 * 1024 * 50 // Reduced buffer size for faster processing
-      });
+          try {
+        // Ultra-fast operation with aggressive timeouts
+        const { stdout, stderr } = await execPromise(ffmpegCommand, { 
+          timeout: 60000, // AGRESIVO: máximo 1 minuto para mixing
+          maxBuffer: 1024 * 1024 * 20 // REDUCIDO: buffer más pequeño
+        });
       
       if (stderr) {
         console.log('FFmpeg stderr:', stderr);
