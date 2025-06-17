@@ -264,7 +264,7 @@ async function mixWithPreparedMusic(ttsAudioBase64, preparedMusic, musicVolume =
       `-c:a libmp3lame -preset fast -b:a 96k -ac 2 ` + // EQUILIBRADO: buena calidad para Chirp3 HD, velocidad optimizada
       `"${outputPath}"`;
     
-    console.log('🔧 Comando FFmpeg ULTRA-OPTIMIZADO:', ffmpegCommand);
+    console.log('🔧 Comando FFmpeg ULTRA-OPTIMIZADO (v2):', ffmpegCommand);
     
           try {
         const { stdout, stderr } = await execPromise(ffmpegCommand, { 
@@ -400,7 +400,7 @@ async function mixAudioWithBackground(ttsAudioBase64, musicTrack = 'random', mus
       `-c:a libmp3lame -preset fast -b:a 96k -ac 2 ` + // EQUILIBRADO: buena calidad para Chirp3 HD, velocidad optimizada
       `"${outputPath}"`;
     
-    console.log('🔧 Ultra-Fast FFmpeg command:', ffmpegCommand);
+    console.log('🔧 Ultra-Fast FFmpeg command (v2):', ffmpegCommand);
     
           try {
         // Ultra-fast operation with aggressive timeouts
