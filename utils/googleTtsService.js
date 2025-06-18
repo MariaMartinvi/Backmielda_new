@@ -6,6 +6,14 @@ require('dotenv').config();
 // 🚀 IMPORTAR SISTEMA DE CACHÉ INTELIGENTE
 const { audioCache } = require('./audioCache');
 
+// 🔄 CONFIGURACIÓN DE REINTENTOS INTELIGENTES
+const RETRY_CONFIG = {
+  maxRetries: 3,
+  baseDelay: 1000, // 1 segundo inicial
+  maxDelay: 10000, // máximo 10 segundos
+  timeout: 30000   // timeout de 30 segundos (vs 300 por defecto)
+};
+
 // Helper function to escape SSML special characters
 function escapeSSML(text) {
   return text
@@ -435,6 +443,121 @@ async function mergeAudioChunks(audioChunks) {
   }
 }
 
+// 🔄 FUNCIÓN DE RETRY CON BACKOFF EXPONENCIAL
+async function retryWithBackoff(fn, operation = 'operation', maxRetries = RETRY_CONFIG.maxRetries) {
+  let lastError;
+  
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      // Aplicar timeout más agresivo
+      return await Promise.race([
+        fn(),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error(`Timeout: ${operation} excedió ${RETRY_CONFIG.timeout/1000}s`)), 
+                    RETRY_CONFIG.timeout)
+        )
+      ]);
+      
+    } catch (error) {
+      lastError = error;
+      
+      // Log detallado del error
+      console.log(`❌ [INTENTO ${attempt + 1}/${maxRetries + 1}] ${operation} falló:`, error.message);
+      
+      // Analizar si vale la pena reintentar
+      const shouldRetry = shouldRetryError(error, attempt, maxRetries);
+      
+      if (!shouldRetry.retry) {
+        console.log(`🚫 No reintentando: ${shouldRetry.reason}`);
+        throw error;
+      }
+      
+      if (attempt < maxRetries) {
+        const delay = Math.min(
+          RETRY_CONFIG.baseDelay * Math.pow(2, attempt), 
+          RETRY_CONFIG.maxDelay
+        );
+        console.log(`⏳ Esperando ${delay}ms antes del reintento...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  
+  throw lastError;
+}
+
+// 🧠 LÓGICA INTELIGENTE DE REINTENTO
+function shouldRetryError(error, attempt, maxRetries) {
+  const errorMessage = error.message.toLowerCase();
+  const errorCode = error.code;
+  
+  // Errores de infraestructura (vale la pena reintentar)
+  if (errorMessage.includes('502') || errorMessage.includes('bad gateway')) {
+    return { retry: true, reason: 'Error 502 - problema de infraestructura' };
+  }
+  
+  if (errorMessage.includes('unavailable') || errorCode === 14) {
+    return { retry: true, reason: 'Servicio no disponible temporalmente' };
+  }
+  
+  if (errorMessage.includes('timeout') || errorMessage.includes('deadline')) {
+    return { retry: true, reason: 'Timeout - reintentar con delay' };
+  }
+  
+  if (errorMessage.includes('internal error') || errorCode === 13) {
+    return { retry: true, reason: 'Error interno de Google Cloud' };
+  }
+  
+  // Rate limiting (esperar más antes de reintentar)
+  if (errorMessage.includes('resource_exhausted') || errorCode === 8) {
+    return { retry: attempt < 2, reason: 'Rate limit - pocos reintentos' };
+  }
+  
+  // Errores de autenticación (no vale la pena reintentar)
+  if (errorMessage.includes('permission_denied') || errorCode === 7) {
+    return { retry: false, reason: 'Error de permisos - no reintentable' };
+  }
+  
+  if (errorMessage.includes('invalid_argument') || errorCode === 3) {
+    return { retry: false, reason: 'Argumento inválido - no reintentable' };
+  }
+  
+  // Por defecto, reintentar errores desconocidos hasta 2 veces
+  return { retry: attempt < 2, reason: 'Error desconocido - reintento limitado' };
+}
+
+// 🎯 FUNCIÓN DE DIAGNÓSTICO TTS MEJORADA
+async function testTTSHealth() {
+  try {
+    console.log('🔬 Ejecutando test de salud TTS...');
+    
+    const testRequest = {
+      input: { text: 'Test' },
+      voice: { languageCode: 'es-ES', name: 'es-ES-Standard-A' },
+      audioConfig: { audioEncoding: 'MP3', sampleRateHertz: 22050 }
+    };
+    
+    const result = await retryWithBackoff(
+      () => speechClient.synthesizeSpeech(testRequest),
+      'TTS Health Check',
+      1 // Solo 1 reintento para el health check
+    );
+    
+    return { 
+      status: 'healthy', 
+      audioSize: result[0].audioContent.length,
+      message: 'TTS funcionando correctamente'
+    };
+    
+  } catch (error) {
+    return {
+      status: 'unhealthy',
+      error: error.message,
+      code: error.code
+    };
+  }
+}
+
 // Función para síntesis de voz con Google Text-to-Speech
 async function synthesizeSpeech(text, voiceId = 'female', speed = 1.0, useIntelligentPauses = true, title = null, progressTracker = null) {
   // Check if API key is configured
@@ -697,12 +820,42 @@ async function synthesizeSingleChunk(text, voiceId = 'female', speed = 1.0, useI
   console.log('🔑 Autenticación: API Key');
 
   try {
-    console.log(`🚀 Enviando solicitud a Google TTS...`);
-    const [response] = await speechClient.synthesizeSpeech(request);
-    console.log(`✅ Audio generado exitosamente (${response.audioContent.length} bytes)`);
+    console.log(`🚀 Enviando solicitud a Google TTS con reintentos inteligentes...`);
+    
+    // 🔄 USAR RETRY INTELIGENTE EN LUGAR DE LLAMADA DIRECTA
+    const [response] = await retryWithBackoff(
+      () => speechClient.synthesizeSpeech(request),
+      `TTS Síntesis (${voiceName})`,
+      RETRY_CONFIG.maxRetries
+    );
+    
+    console.log(`✅ Audio generado exitosamente (${response.audioContent.length} bytes) con voz ${voiceName}`);
     return response.audioContent;
   } catch (error) {
-    console.error('❌ Error en síntesis de voz:', error);
+    console.error(`❌ Error FINAL en síntesis de voz con ${voiceName} después de reintentos:`, error.message);
+    
+    // 🎯 MEJORAR MENSAJES DE ERROR PARA EL USUARIO
+    let userFriendlyError = 'Error generando audio';
+    let httpStatus = 500;
+    
+    if (error.message.includes('502') || error.message.includes('Bad Gateway')) {
+      userFriendlyError = 'Servicio de voz temporalmente no disponible (Error 502). Intenta nuevamente en unos minutos.';
+      httpStatus = 503;
+    } else if (error.message.includes('UNAVAILABLE') || error.code === 14) {
+      userFriendlyError = 'Servicio de voz no disponible. Intenta nuevamente en unos minutos.';
+      httpStatus = 503;
+    } else if (error.message.includes('Timeout')) {
+      userFriendlyError = 'El servicio de voz tardó demasiado en responder. Intenta nuevamente.';
+      httpStatus = 504;
+    } else if (error.message.includes('RESOURCE_EXHAUSTED') || error.code === 8) {
+      userFriendlyError = 'Demasiadas solicitudes. Espera un momento antes de intentar nuevamente.';
+      httpStatus = 429;
+    }
+    
+    // Agregar propiedades para manejo en controller
+    error.userMessage = userFriendlyError;
+    error.httpStatus = httpStatus;
+    
     throw error;
   }
 }
@@ -712,7 +865,16 @@ const textToSpeech = require('@google-cloud/text-to-speech');
 
 // Initialize the client with API key authentication
 const speechClient = new textToSpeech.TextToSpeechClient({
-  apiKey: process.env.GOOGLE_TTS_API_KEY
+  apiKey: process.env.GOOGLE_TTS_API_KEY,
+  // ⚡ TIMEOUTS MÁS AGRESIVOS PARA FALLAR RÁPIDO
+  timeout: RETRY_CONFIG.timeout, // 30 segundos en lugar de 300
+  maxRetries: 0, // Manejo manual de reintentos con nuestra lógica
+  // Configurar gRPC para timeouts más rápidos
+  grpc: {
+    'grpc.keepalive_time_ms': 10000,
+    'grpc.keepalive_timeout_ms': 5000,
+    'grpc.http2.max_pings_without_data': 0
+  }
 });
 
 // Log initialization status
@@ -732,5 +894,8 @@ module.exports = {
   escapeSSML,
   splitTextIntoChunks,
   synthesizeSingleChunk,
-  isChirp3HDVoice
+  isChirp3HDVoice,
+  testTTSHealth,
+  retryWithBackoff,
+  shouldRetryError
 }; 

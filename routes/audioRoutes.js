@@ -176,4 +176,135 @@ router.delete('/cache/clear', async (req, res) => {
   }
 });
 
+// 🔬 ENDPOINT DE DIAGNÓSTICO TTS GOOGLE CLOUD
+router.get('/tts/health', async (req, res) => {
+  try {
+    console.log('🔬 === DIAGNÓSTICO TTS GOOGLE CLOUD ===');
+    
+    const startTime = Date.now();
+    const { getGoogleTTSService } = require('../services/googleTTSService');
+    
+    const response = {
+      timestamp: new Date().toISOString(),
+      service: 'Google Cloud Text-to-Speech',
+      status: 'checking',
+      tests: {},
+      recommendations: []
+    };
+    
+    // Test 1: Service initialization
+    try {
+      console.log('🔍 Teste 1: Inicialización del servicio...');
+      const ttsService = getGoogleTTSService();
+      response.tests.initialization = { status: '✅ OK', time: Date.now() - startTime };
+    } catch (error) {
+      console.error('❌ Error inicializando servicio TTS:', error);
+      response.tests.initialization = { status: '❌ FAIL', error: error.message };
+      response.status = 'degraded';
+    }
+    
+    // Test 2: Simple TTS call (muy corto para minimizar impacto)
+    try {
+      console.log('🔍 Teste 2: Llamada TTS simple...');
+      const testStart = Date.now();
+      
+      const { getGoogleTTSService } = require('../services/googleTTSService');
+      const ttsService = getGoogleTTSService();
+      
+             // Usar la nueva función de health check optimizada
+       const result = await ttsService.testTTSHealth();
+      
+      const testTime = Date.now() - testStart;
+      
+             if (result.status === 'healthy') {
+         response.tests.tts_call = { 
+           status: '✅ OK', 
+           time: testTime,
+           audioSize: result.audioSize,
+           message: result.message
+         };
+         response.status = response.status === 'checking' ? 'healthy' : response.status;
+       } else {
+         response.tests.tts_call = { 
+           status: '❌ FAIL', 
+           message: result.error,
+           time: testTime,
+           code: result.code
+         };
+         response.status = 'unhealthy';
+       }
+      
+    } catch (error) {
+      console.error('❌ Error en llamada TTS:', error);
+      const testTime = Date.now() - startTime;
+      
+      // Analizar tipo de error específico
+      const errorAnalysis = {
+        status: '❌ FAIL',
+        time: testTime,
+        error: error.message,
+        type: 'unknown'
+      };
+      
+      if (error.message.includes('502') || error.message.includes('Bad Gateway')) {
+        errorAnalysis.type = 'infrastructure';
+        errorAnalysis.diagnosis = 'Problema de infraestructura Google Cloud';
+        response.recommendations.push('Verificar Google Cloud Status Dashboard');
+        response.recommendations.push('Reintenta en 5-10 minutos');
+      } else if (error.message.includes('UNAVAILABLE') || error.code === 14) {
+        errorAnalysis.type = 'service_unavailable';
+        errorAnalysis.diagnosis = 'Servicio TTS temporalmente no disponible';
+        response.recommendations.push('Problema temporal de Google Cloud');
+        response.recommendations.push('Implementar reintentos con backoff');
+      } else if (error.message.includes('PERMISSION_DENIED') || error.code === 7) {
+        errorAnalysis.type = 'authentication';
+        errorAnalysis.diagnosis = 'Problema de autenticación o permisos';
+        response.recommendations.push('Verificar API key y configuración');
+      } else if (error.message.includes('RESOURCE_EXHAUSTED') || error.code === 8) {
+        errorAnalysis.type = 'rate_limit';
+        errorAnalysis.diagnosis = 'Límite de rate excedido';
+        response.recommendations.push('Reducir frecuencia de llamadas');
+      }
+      
+      response.tests.tts_call = errorAnalysis;
+      response.status = 'unhealthy';
+    }
+    
+    // Test 3: Environment check
+    const envVars = {
+      GOOGLE_APPLICATION_CREDENTIALS: !!process.env.GOOGLE_APPLICATION_CREDENTIALS,
+      GOOGLE_CLOUD_PROJECT: !!process.env.GOOGLE_CLOUD_PROJECT,
+      NODE_ENV: process.env.NODE_ENV
+    };
+    
+    response.tests.environment = {
+      status: envVars.GOOGLE_APPLICATION_CREDENTIALS ? '✅ OK' : '⚠️ WARNING',
+      variables: envVars
+    };
+    
+    const totalTime = Date.now() - startTime;
+    response.totalTime = totalTime;
+    
+    console.log(`🔬 Diagnóstico completado en ${totalTime}ms - Status: ${response.status}`);
+    console.log('========================================');
+    
+    // Determinar HTTP status code apropiado
+    let httpStatus = 200;
+    if (response.status === 'unhealthy') httpStatus = 503;
+    else if (response.status === 'degraded') httpStatus = 206; // Partial Content
+    
+    res.status(httpStatus).json(response);
+    
+  } catch (error) {
+    console.error('❌ Error en diagnóstico TTS:', error);
+    res.status(500).json({
+      timestamp: new Date().toISOString(),
+      service: 'Google Cloud Text-to-Speech',
+      status: 'error',
+      error: 'Failed to run diagnostics',
+      details: error.message
+    });
+  }
+});
+
 module.exports = router;

@@ -184,7 +184,48 @@ exports.generateAudio = async (req, res, next) => {
     });
   } catch (error) {
     console.error('Error in audio generation:', error);
-    next(error);
+    
+    // Detectar errores específicos de Google Cloud
+    if (error.message && error.message.includes('502:Bad Gateway')) {
+      console.error('🚨 GOOGLE CLOUD TTS INFRASTRUCTURE ISSUE DETECTED');
+      console.error('📋 Error type: 502 Bad Gateway - Google service temporarily unavailable');
+      
+      return res.status(503).json({
+        error: 'Servicio de síntesis de voz temporalmente no disponible',
+        details: 'Google Cloud Text-to-Speech está experimentando problemas temporales. Por favor, inténtalo de nuevo en unos minutos.',
+        errorType: 'service_unavailable',
+        retryAfter: 60 // Seconds
+      });
+    }
+    
+    if (error.message && error.message.includes('UNAVAILABLE')) {
+      console.error('🚨 GOOGLE CLOUD TTS SERVICE UNAVAILABLE');
+      
+      return res.status(503).json({
+        error: 'Servicio de síntesis de voz no disponible',
+        details: 'El servicio de generación de audio está temporalmente fuera de línea. Inténtalo de nuevo en unos minutos.',
+        errorType: 'service_unavailable',
+        retryAfter: 120 // Seconds
+      });
+    }
+    
+    if (error.message && error.message.includes('timeout')) {
+      console.error('🚨 GOOGLE CLOUD TTS TIMEOUT');
+      
+      return res.status(504).json({
+        error: 'Timeout en la generación de audio',
+        details: 'La generación de audio está tardando más de lo esperado. Por favor, inténtalo de nuevo.',
+        errorType: 'timeout',
+        retryAfter: 30 // Seconds
+      });
+    }
+    
+    // Error genérico
+    return res.status(500).json({
+      error: 'Error interno en la generación de audio',
+      details: 'Ha ocurrido un error inesperado. Por favor, inténtalo de nuevo.',
+      errorType: 'internal_error'
+    });
   }
 };
 
@@ -283,5 +324,65 @@ exports.testPauses = async (req, res) => {
       error: 'Error interno del servidor durante el test de pausas',
       details: error.message 
     });
+  }
+};
+
+// Health check específico para Google TTS
+exports.checkTTSHealth = async (req, res) => {
+  try {
+    console.log('🔍 Checking Google TTS health...');
+    
+    // Test simple con texto mínimo
+    const testRequest = {
+      input: { text: 'Test' },
+      voice: {
+        languageCode: 'es-ES',
+        name: 'es-ES-Chirp3-HD-Achernar'
+      },
+      audioConfig: {
+        audioEncoding: 'MP3',
+        speakingRate: 1.0,
+        volumeGainDb: 2.0
+      }
+    };
+    
+    const textToSpeech = require('@google-cloud/text-to-speech');
+    const speechClient = new textToSpeech.TextToSpeechClient({
+      apiKey: process.env.GOOGLE_TTS_API_KEY
+    });
+    
+    const startTime = Date.now();
+    const [response] = await speechClient.synthesizeSpeech(testRequest);
+    const responseTime = Date.now() - startTime;
+    
+    console.log(`✅ Google TTS health check passed in ${responseTime}ms`);
+    
+    res.json({
+      status: 'healthy',
+      service: 'Google Cloud Text-to-Speech',
+      responseTime: responseTime,
+      timestamp: new Date().toISOString(),
+      audioSize: response.audioContent.length
+    });
+    
+  } catch (error) {
+    console.error('❌ Google TTS health check failed:', error.message);
+    
+    const errorInfo = {
+      status: 'unhealthy',
+      service: 'Google Cloud Text-to-Speech',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    };
+    
+    if (error.message.includes('502')) {
+      errorInfo.issue = 'Google Cloud infrastructure problems';
+      errorInfo.recommendation = 'Wait and retry in a few minutes';
+    } else if (error.message.includes('UNAVAILABLE')) {
+      errorInfo.issue = 'Service temporarily unavailable';
+      errorInfo.recommendation = 'Check Google Cloud status page';
+    }
+    
+    res.status(503).json(errorInfo);
   }
 };
