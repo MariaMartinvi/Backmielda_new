@@ -150,4 +150,89 @@ router.post('/:storyId/rate', auth, storyController.rateStory);
 // Get story ratings
 router.get('/:storyId/ratings', storyController.getStoryRatings);
 
+// TEMPORARY: Generate test image with Memphis style (NO AUTH for testing)
+router.get('/test-memphis-image', async (req, res) => {
+  const { generateImage } = require('../utils/openaiService');
+  const { admin } = require('../config/firebase');
+  const fs = require('fs').promises;
+  const path = require('path');
+  const os = require('os');
+  
+  const tempDir = os.tmpdir();
+  let imagePath;
+  
+  try {
+    console.log('🎨 Generating Memphis style test image...');
+    
+    const prompt = `Memphis style, geometric shapes, vibrant electric blue, hot pink, yellow, and deep purples. 
+Night space theme. Energetic and educational. Show Sara in a girl playing videogames in a futuristic room with space elements. 
+IMPORTANT: NO TEXT OR WORDS should appear in the image - only visual elements.`;
+    
+    const response = await generateImage(prompt);
+    
+    if (!response.data || !response.data[0] || !response.data[0].url) {
+      throw new Error('Invalid response from image generation service');
+    }
+    
+    const imageUrl = response.data[0].url;
+    console.log('✅ Image generated, downloading...');
+    
+    let imageBuffer;
+    if (imageUrl.startsWith('data:')) {
+      const base64Data = imageUrl.split(',')[1];
+      imageBuffer = Buffer.from(base64Data, 'base64');
+    } else {
+      const imageResponse = await fetch(imageUrl);
+      if (!imageResponse.ok) {
+        throw new Error(`Failed to download image: ${imageResponse.status}`);
+      }
+      const imageArrayBuffer = await imageResponse.arrayBuffer();
+      imageBuffer = Buffer.from(imageArrayBuffer);
+    }
+    
+    console.log('✅ Image downloaded, saving to Firebase...');
+    
+    const imageFileName = `test-memphis-${Date.now()}.png`;
+    imagePath = path.join(tempDir, imageFileName);
+    await fs.writeFile(imagePath, imageBuffer);
+    
+    const bucket = admin.storage().bucket();
+    const storagePath = `learn-english-images/${imageFileName}`;
+    
+    await bucket.upload(imagePath, {
+      destination: storagePath,
+      metadata: {
+        cacheControl: 'public, max-age=31536000',
+        contentType: 'image/png'
+      },
+    });
+    
+    const file = bucket.file(storagePath);
+    await file.makePublic();
+    
+    const encodedPath = encodeURIComponent(storagePath);
+    const firebaseUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodedPath}?alt=media`;
+    
+    console.log('✅ Image uploaded to Firebase Storage');
+    
+    if (imagePath) await fs.unlink(imagePath);
+    
+    res.json({
+      success: true,
+      imageUrl: firebaseUrl,
+      message: 'Memphis style test image generated!'
+    });
+    
+  } catch (error) {
+    console.error('❌ Error:', error);
+    if (imagePath) {
+      try { await fs.unlink(imagePath); } catch (e) {}
+    }
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 module.exports = router; 

@@ -1,10 +1,9 @@
-// Load environment variables first
+// Load environment variables FIRST (before anything else)
 const path = require('path');
 const fs = require('fs');
 const dotenv = require('dotenv');
-const { admin, db } = require('./config/firebase'); // Use Firebase instead of MongoDB
 
-// Load environment variables
+// Load environment variables IMMEDIATELY
 const envPath = path.resolve(__dirname, '.env');
 console.log('Loading environment variables from:', envPath);
 
@@ -19,6 +18,9 @@ if (fs.existsSync(envPath)) {
 } else {
   console.log('No .env file found, using environment variables from system');
 }
+
+// NOW import Firebase (after .env is loaded)
+const { admin, db } = require('./config/firebase'); // Use Firebase instead of MongoDB
 
 // Log environment variables (without sensitive data)
 console.log('Environment Variables Check:');
@@ -71,6 +73,7 @@ const stripeRoutes = require('./routes/stripeRoutes'); // Updated for Firebase
 // const newsletterRoutes = require('./routes/newsletterRoutes'); // Needs Firebase update
 // const ratingsRoutes = require('./routes/ratingsRoutes'); // Needs Firebase update
 const audioRoutes = require('./routes/audioRoutes');
+const learnEnglishRoutes = require('./routes/learnEnglishRoutes'); // Learn English with audio stories
 
 // Create Express app
 const app = express();
@@ -315,6 +318,9 @@ console.log('Stripe routes registered');
 app.use('/api/audio', audioRoutes);
 console.log('Audio routes registered');
 
+app.use('/api/learn-english', learnEnglishRoutes);
+console.log('Learn English routes registered');
+
 // Subscription routes - need to be updated for Firebase  
 // app.use('/api/subscription', subscriptionRoutes);
 // console.log('Subscription routes registered');
@@ -326,6 +332,91 @@ console.log('Audio routes registered');
 // Ratings routes - should work with story service
 // app.use('/api/ratings', ratingsRoutes);
 // console.log('Ratings routes registered');
+
+// TEST: Generate Memphis style image (NO AUTH - for testing only)
+app.get('/api/test-memphis-image', async (req, res) => {
+  const { generateImage } = require('./utils/openaiService');
+  const { admin } = require('./config/firebase');
+  const fs = require('fs').promises;
+  const path = require('path');
+  const os = require('os');
+  
+  const tempDir = os.tmpdir();
+  let imagePath;
+  
+  try {
+    console.log('🎨 Generating Memphis style test image...');
+    
+    const prompt = `Memphis style, geometric shapes, vibrant electric blue, hot pink, yellow, and deep purples. 
+Night space theme. Energetic and educational. Show Sara in a girl playing videogames in a futuristic room with space elements. 
+IMPORTANT: NO TEXT OR WORDS should appear in the image - only visual elements.`;
+    
+    const response = await generateImage(prompt);
+    
+    if (!response.data || !response.data[0] || !response.data[0].url) {
+      throw new Error('Invalid response from image generation service');
+    }
+    
+    const imageUrl = response.data[0].url;
+    console.log('✅ Image generated, downloading...');
+    
+    let imageBuffer;
+    if (imageUrl.startsWith('data:')) {
+      const base64Data = imageUrl.split(',')[1];
+      imageBuffer = Buffer.from(base64Data, 'base64');
+    } else {
+      const imageResponse = await fetch(imageUrl);
+      if (!imageResponse.ok) {
+        throw new Error(`Failed to download image: ${imageResponse.status}`);
+      }
+      const imageArrayBuffer = await imageResponse.arrayBuffer();
+      imageBuffer = Buffer.from(imageArrayBuffer);
+    }
+    
+    console.log('✅ Image downloaded, saving to Firebase...');
+    
+    const imageFileName = `test-memphis-${Date.now()}.png`;
+    imagePath = path.join(tempDir, imageFileName);
+    await fs.writeFile(imagePath, imageBuffer);
+    
+    const bucket = admin.storage().bucket();
+    const storagePath = `learn-english-images/${imageFileName}`;
+    
+    await bucket.upload(imagePath, {
+      destination: storagePath,
+      metadata: {
+        cacheControl: 'public, max-age=31536000',
+        contentType: 'image/png'
+      },
+    });
+    
+    const file = bucket.file(storagePath);
+    await file.makePublic();
+    
+    const encodedPath = encodeURIComponent(storagePath);
+    const firebaseUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodedPath}?alt=media`;
+    
+    console.log('✅ Image uploaded to Firebase Storage');
+    
+    if (imagePath) await fs.unlink(imagePath);
+    
+    res.json({
+      success: true,
+      imageUrl: firebaseUrl,
+      message: 'Memphis style test image generated!'
+    });
+    
+  } catch (error) {
+    console.error('❌ Error:', error);
+    if (imagePath) {
+      try { await fs.unlink(imagePath); } catch (e) {}
+    }
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
 
 // Health check route (simple, no auth required)
 app.get('/health', (req, res) => {
