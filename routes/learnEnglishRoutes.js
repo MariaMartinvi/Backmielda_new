@@ -3,6 +3,9 @@ const express = require('express');
 const router = express.Router();
 const learnEnglishController = require('../controllers/learnEnglishController');
 
+// Get all image URLs
+router.get('/image-urls', learnEnglishController.getAllImageUrls);
+
 // Get story with audio
 router.get('/stories/:storyId', learnEnglishController.getStory);
 

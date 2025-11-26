@@ -29,6 +29,122 @@ const getFirebaseStorageBucket = () => {
   return bucket;
 };
 
+// Generar imagen para historia con estilo Memphis
+async function generateStoryImage(story) {
+  try {
+    const { generateImage } = require('../utils/openaiService');
+    const fs = require('fs').promises;
+    const path = require('path');
+    const os = require('os');
+    const fetch = require('node-fetch');
+    
+    console.log(`🎨 Generating Memphis image for story: ${story.id}`);
+    
+    // Crear prompt basado en el contenido de la historia
+    const characterName = story.characters[0]; // Primer personaje
+    const character = require('../data/fiveFromEarthCharacters').getCharacter(characterName);
+    
+    // Extraer escena clave del texto
+    const storyText = story.text;
+    const firstLines = storyText.split('\n').slice(0, 3).join(' ');
+    
+    const prompt = `Memphis Espacial Nocturno style illustration: geometric shapes, vibrant electric blue, hot pink, yellow, and deep purples. 
+Night space theme with stars and planets. 
+Character: ${character.name} from ${character.from}, ${character.description}. 
+Scene: ${firstLines}
+Style: energetic, educational, child-friendly geometric shapes and patterns.
+IMPORTANT CHARACTER COMPOSITION: Show the character from behind, in silhouette, or from side angle - AVOID showing detailed facial features. Focus on body language, clothing, and activity instead of face.
+IMPORTANT: NO TEXT OR WORDS in the image - only visual elements.`;
+    
+    // Generar imagen
+    const response = await generateImage(prompt);
+    
+    if (!response.data || !response.data[0] || !response.data[0].url) {
+      throw new Error('Invalid response from image generation service');
+    }
+    
+    const imageUrl = response.data[0].url;
+    console.log('✅ Image generated, processing...');
+    
+    // Descargar imagen
+    let imageBuffer;
+    if (imageUrl.startsWith('data:')) {
+      const base64Data = imageUrl.split(',')[1];
+      imageBuffer = Buffer.from(base64Data, 'base64');
+    } else {
+      const imageResponse = await fetch(imageUrl);
+      if (!imageResponse.ok) {
+        throw new Error(`Failed to download: ${imageResponse.status}`);
+      }
+      const arrayBuffer = await imageResponse.arrayBuffer();
+      imageBuffer = Buffer.from(arrayBuffer);
+    }
+    
+    // Guardar temporalmente
+    const tempDir = os.tmpdir();
+    const imageFileName = `${story.id}-memphis.png`;
+    const imagePath = path.join(tempDir, imageFileName);
+    await fs.writeFile(imagePath, imageBuffer);
+    
+    // Subir a Firebase Storage
+    const bucket = getFirebaseStorageBucket();
+    const storagePath = `learn-english-images/${imageFileName}`;
+    
+    await bucket.upload(imagePath, {
+      destination: storagePath,
+      metadata: {
+        cacheControl: 'public, max-age=31536000',
+        contentType: 'image/png'
+      },
+    });
+    
+    const file = bucket.file(storagePath);
+    
+    // Intentar hacer público, pero si falla, usar URL firmada
+    try {
+      await file.makePublic();
+      const encodedPath = encodeURIComponent(storagePath);
+      const firebaseUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodedPath}?alt=media`;
+      
+      // Limpiar archivo temporal
+      await fs.unlink(imagePath);
+      
+      console.log(`✅ Image uploaded for ${story.id}: ${firebaseUrl}`);
+      return firebaseUrl;
+    } catch (publicError) {
+      console.log('⚠️ Could not make file public, using signed URL instead');
+      
+      // Generar URL firmada con 10 años de validez
+      const [signedUrl] = await file.getSignedUrl({
+        action: 'read',
+        expires: Date.now() + (10 * 365 * 24 * 60 * 60 * 1000) // 10 años
+      });
+      
+      // Limpiar archivo temporal
+      await fs.unlink(imagePath);
+      
+      console.log(`✅ Image uploaded for ${story.id} with signed URL`);
+      return signedUrl;
+    }
+    
+  } catch (error) {
+    console.error(`❌ Error generating image for ${story.id}:`, error.message);
+    return null; // Retornar null si falla, la historia puede funcionar sin imagen
+  }
+}
+
+// Verificar si una imagen existe
+async function imageExists(storyId) {
+  try {
+    const bucket = getFirebaseStorageBucket();
+    const file = bucket.file(`learn-english-images/${storyId}-memphis.png`);
+    const [exists] = await file.exists();
+    return exists;
+  } catch (error) {
+    return false;
+  }
+}
+
 // Datos de las historias predefinidas
 const STORIES_DATA = {
   // Mes 1 - Semana 1
@@ -361,13 +477,45 @@ exports.getStory = async (req, res) => {
         console.log('📤 Intro URL:', introUrl);
         console.log('📤 Vocab URL:', vocabUrl);
         console.log('📤 Story URL:', storyUrl);
+        
+        // COMPONENTE 4: IMAGEN (Memphis Espacial Nocturno)
+        let imageUrl;
+        if (await imageExists(storyId)) {
+          const storagePath = `learn-english-images/${storyId}-memphis.png`;
+          const file = bucket.file(storagePath);
+          
+          // Generar URL firmada para acceso seguro (válida por 10 años)
+          try {
+            const [signedUrl] = await file.getSignedUrl({
+              action: 'read',
+              expires: Date.now() + (10 * 365 * 24 * 60 * 60 * 1000)
+            });
+            imageUrl = signedUrl;
+            console.log('✓ Story image exists (cached)');
+            console.log('📤 Image URL:', imageUrl);
+          } catch (urlError) {
+            console.error('❌ Error getting signed URL:', urlError.message);
+            imageUrl = null;
+          }
+        } else {
+          console.log('🎨 Generating Memphis story image');
+          imageUrl = await generateStoryImage(storyData);
+          if (imageUrl) {
+            console.log('✅ Story image generated');
+            console.log('📤 Image URL:', imageUrl);
+          } else {
+            console.log('⚠️ Story image generation failed, continuing without image');
+          }
+        }
+        
         return res.json({
           success: true,
           story: {
             ...storyData,
             introUrl,
             vocabUrl,
-            storyUrl
+            storyUrl,
+            imageUrl
           }
         });
       } catch (error) {
@@ -404,19 +552,97 @@ exports.getStory = async (req, res) => {
     console.log('   Vocab:', vocabUrl);
     console.log('   Story:', storyUrl);
     
-    // Devolver la historia con URLs de audio
+    // COMPONENTE 4: IMAGEN (Memphis Espacial Nocturno)
+    let imageUrl;
+    try {
+      const bucket = getFirebaseStorageBucket();
+      if (await imageExists(storyId)) {
+        const storagePath = `learn-english-images/${storyId}-memphis.png`;
+        const file = bucket.file(storagePath);
+        
+        // Generar URL firmada para acceso seguro (válida por 10 años)
+        const [signedUrl] = await file.getSignedUrl({
+          action: 'read',
+          expires: Date.now() + (10 * 365 * 24 * 60 * 60 * 1000)
+        });
+        imageUrl = signedUrl;
+        console.log('✓ Story image exists (cached)');
+        console.log('   Image:', imageUrl);
+      } else {
+        console.log('🎨 Generating Memphis story image');
+        imageUrl = await generateStoryImage(storyData);
+        if (imageUrl) {
+          console.log('✅ Story image generated');
+          console.log('   Image:', imageUrl);
+        } else {
+          console.log('⚠️ Story image generation failed, continuing without image');
+        }
+      }
+    } catch (imageError) {
+      console.error('❌ Error with image:', imageError.message);
+      imageUrl = null;
+    }
+    
+    // Devolver la historia con URLs de audio e imagen
     res.json({
       success: true,
       story: {
         ...storyData,
         introUrl,
         vocabUrl,
-        storyUrl
+        storyUrl,
+        imageUrl
       }
     });
     
   } catch (error) {
     console.error('❌ Error loading Learn English story:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
+// Obtener URLs de imágenes de todas las historias
+exports.getAllImageUrls = async (req, res) => {
+  try {
+    const bucket = getFirebaseStorageBucket();
+    const imageUrls = {};
+    
+    // Lista de IDs de historias
+    const storyIds = [
+      'm1w1s1', 'm1w1s2', 'm1w1s3',
+      'm1w2s1', 'm1w2s2', 'm1w2s3',
+      'm1w3s1', 'm1w3s2', 'm1w3s3',
+      'm1w4s1', 'm1w4s2', 'm1w4s3'
+    ];
+    
+    // Generar URLs firmadas para cada historia que tenga imagen
+    for (const storyId of storyIds) {
+      if (await imageExists(storyId)) {
+        const storagePath = `learn-english-images/${storyId}-memphis.png`;
+        const file = bucket.file(storagePath);
+        
+        try {
+          const [signedUrl] = await file.getSignedUrl({
+            action: 'read',
+            expires: Date.now() + (10 * 365 * 24 * 60 * 60 * 1000) // 10 años
+          });
+          imageUrls[storyId] = signedUrl;
+        } catch (urlError) {
+          console.error(`Error getting URL for ${storyId}:`, urlError.message);
+        }
+      }
+    }
+    
+    res.json({
+      success: true,
+      imageUrls
+    });
+    
+  } catch (error) {
+    console.error('❌ Error getting image URLs:', error);
     res.status(500).json({
       success: false,
       error: error.message

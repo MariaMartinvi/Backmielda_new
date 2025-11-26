@@ -333,9 +333,9 @@ console.log('Learn English routes registered');
 // app.use('/api/ratings', ratingsRoutes);
 // console.log('Ratings routes registered');
 
-// TEST: Generate Memphis style image (NO AUTH - for testing only)
-app.get('/api/test-memphis-image', async (req, res) => {
-  const { generateImage } = require('./utils/openaiService');
+// TEST: Transform image to Memphis style using image-to-image (NO AUTH - for testing only)
+app.post('/api/transform-to-memphis', express.json({ limit: '10mb' }), async (req, res) => {
+  const axios = require('axios');
   const { admin } = require('./config/firebase');
   const fs = require('fs').promises;
   const path = require('path');
@@ -345,37 +345,61 @@ app.get('/api/test-memphis-image', async (req, res) => {
   let imagePath;
   
   try {
-    console.log('🎨 Generating Memphis style test image...');
+    console.log('🎨 Transforming image to Memphis style...');
     
-    const prompt = `Memphis style, geometric shapes, vibrant electric blue, hot pink, yellow, and deep purples. 
-Night space theme. Energetic and educational. Show Sara in a girl playing videogames in a futuristic room with space elements. 
-IMPORTANT: NO TEXT OR WORDS should appear in the image - only visual elements.`;
+    const { imageUrl, characterName, scene, description } = req.body;
     
-    const response = await generateImage(prompt);
-    
-    if (!response.data || !response.data[0] || !response.data[0].url) {
-      throw new Error('Invalid response from image generation service');
+    if (!imageUrl) {
+      return res.status(400).json({ error: 'imageUrl is required' });
     }
     
-    const imageUrl = response.data[0].url;
-    console.log('✅ Image generated, downloading...');
+    // Usar Fal.ai con image-to-image
+    const prompt = `Transform this character portrait into Memphis Espacial Nocturno style: geometric shapes, vibrant electric blue, hot pink, yellow, and deep purples. 
+Night space theme with stars and planets. 
+KEEP THE SAME CHARACTER: ${description || 'young person'}. Maintain exact facial features, hair style and color, skin tone, age, and overall appearance from the reference image.
+Scene: ${scene || 'portrait with space elements'}. 
+IMPORTANT: NO TEXT OR WORDS in the image - only visual elements.`;
+    
+    console.log('🚀 Calling Fal.ai img2img API...');
+    
+    const response = await axios.post('https://fal.run/fal-ai/fast-sdxl', {
+      prompt: prompt,
+      image_url: imageUrl,
+      strength: 0.4, // 0.4 = mantiene MÁS el original (cara, rasgos), solo cambia estilo
+      image_size: "square_hd",
+      num_inference_steps: 35,
+      guidance_scale: 8.0, // Más alto = sigue mejor el prompt
+      num_images: 1,
+      enable_safety_checker: true,
+      sync_mode: true
+    }, {
+      headers: {
+        'Authorization': `Key ${process.env.FAL_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 60000
+    });
+    
+    console.log('✅ Image transformed, downloading...');
     
     let imageBuffer;
-    if (imageUrl.startsWith('data:')) {
-      const base64Data = imageUrl.split(',')[1];
+    const generatedUrl = response.data.images[0].url;
+    
+    if (generatedUrl.startsWith('data:')) {
+      const base64Data = generatedUrl.split(',')[1];
       imageBuffer = Buffer.from(base64Data, 'base64');
     } else {
-      const imageResponse = await fetch(imageUrl);
+      const imageResponse = await fetch(generatedUrl);
       if (!imageResponse.ok) {
-        throw new Error(`Failed to download image: ${imageResponse.status}`);
+        throw new Error(`Failed to download: ${imageResponse.status}`);
       }
-      const imageArrayBuffer = await imageResponse.arrayBuffer();
-      imageBuffer = Buffer.from(imageArrayBuffer);
+      const arrayBuffer = await imageResponse.arrayBuffer();
+      imageBuffer = Buffer.from(arrayBuffer);
     }
     
-    console.log('✅ Image downloaded, saving to Firebase...');
+    console.log('✅ Downloaded, uploading to Firebase...');
     
-    const imageFileName = `test-memphis-${Date.now()}.png`;
+    const imageFileName = `${characterName || 'character'}-memphis-${Date.now()}.png`;
     imagePath = path.join(tempDir, imageFileName);
     await fs.writeFile(imagePath, imageBuffer);
     
@@ -396,14 +420,14 @@ IMPORTANT: NO TEXT OR WORDS should appear in the image - only visual elements.`;
     const encodedPath = encodeURIComponent(storagePath);
     const firebaseUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodedPath}?alt=media`;
     
-    console.log('✅ Image uploaded to Firebase Storage');
+    console.log('✅ Uploaded to Firebase Storage');
     
     if (imagePath) await fs.unlink(imagePath);
     
     res.json({
       success: true,
       imageUrl: firebaseUrl,
-      message: 'Memphis style test image generated!'
+      message: `${characterName} transformed to Memphis style!`
     });
     
   } catch (error) {
