@@ -628,22 +628,24 @@ exports.getAllImageUrls = async (req, res) => {
     
     // Generar URLs firmadas para cada historia que tenga imagen
     for (const storyId of storyIds) {
-      if (await imageExists(storyId)) {
-        const storagePath = `learn-english-images/${storyId}-memphis.png`;
-        const file = bucket.file(storagePath);
-        
-        try {
+      try {
+        if (await imageExists(storyId)) {
+          const storagePath = `learn-english-images/${storyId}-memphis.png`;
+          const file = bucket.file(storagePath);
+          
           const [signedUrl] = await file.getSignedUrl({
             action: 'read',
             expires: Date.now() + (10 * 365 * 24 * 60 * 60 * 1000) // 10 años
           });
           imageUrls[storyId] = signedUrl;
-        } catch (urlError) {
-          console.error(`Error getting URL for ${storyId}:`, urlError.message);
         }
+      } catch (urlError) {
+        console.error(`⚠️ Error getting URL for ${storyId}:`, urlError.message);
+        // Continuar con las demás imágenes
       }
     }
     
+    // Siempre devolver respuesta exitosa, aunque esté vacía
     res.json({
       success: true,
       imageUrls
@@ -651,9 +653,10 @@ exports.getAllImageUrls = async (req, res) => {
     
   } catch (error) {
     console.error('❌ Error getting image URLs:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
+    // Devolver objeto vacío en lugar de error
+    res.json({
+      success: true,
+      imageUrls: {}
     });
   }
 };
