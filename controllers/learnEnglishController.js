@@ -53,7 +53,15 @@ Night space theme with stars and planets.
 Character: ${character.name} from ${character.from}, ${character.description}. 
 Scene: ${firstLines}
 Style: energetic, educational, child-friendly geometric shapes and patterns.
-IMPORTANT CHARACTER COMPOSITION: Show the character from behind, in silhouette, or from side angle - AVOID showing detailed facial features. Focus on body language, clothing, and activity instead of face.
+
+CRITICAL - CHARACTER MUST BE:
+- Viewed from behind (back view) OR
+- In silhouette/shadow with NO facial details OR  
+- Face completely hidden/obscured OR
+- Face extremely blurred/out of focus
+DO NOT show clear facial features, eyes, nose, or mouth.
+Focus on: body posture, clothing, activity, and environment - NOT on character's face.
+
 IMPORTANT: NO TEXT OR WORDS in the image - only visual elements.`;
     
     // Generar imagen
