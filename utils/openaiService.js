@@ -431,7 +431,13 @@ exports.generateImage = async (prompt, size = 'square_hd') => {
     }
 
     // Enhanced prompt for better story illustrations
+    // AÑADIR SIEMPRE el prefijo como en el código original del 28 de noviembre
+    // Esto da el estilo ilustrativo bonito que tenía antes
     const enhancedPrompt = `Children's book illustration style, warm and friendly, colorful, safe for kids: ${prompt}`;
+    
+    console.log(`🎨 [openaiService] Enhanced prompt (FINAL - sent to Fal.ai):`);
+    console.log(enhancedPrompt);
+    console.log(`🎨 [openaiService] Enhanced prompt length: ${enhancedPrompt.length} characters`);
 
     // Determinar el tamaño de imagen
     let imageSize = 'square_hd'; // 1024x1024 por defecto

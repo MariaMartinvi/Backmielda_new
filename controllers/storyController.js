@@ -1522,7 +1522,7 @@ exports.publishStory = async (req, res) => {
             console.log('✅ [PUBLISH] Using existing audio from Firebase:', audioPath);
         }
 
-        // Generate and save image with retry logic
+        // Generate and save image with retry logic (directly as WebP, no intermediate PNG/JPG)
         let imagePath;
         let imageFilePath;
         try {
@@ -1537,16 +1537,44 @@ exports.publishStory = async (req, res) => {
             
             const imageArrayBuffer = await imageResponse.arrayBuffer();
             const imageBuffer = Buffer.from(imageArrayBuffer);
-            console.log('✅ [PUBLISH] Image downloaded, saving directly...');
+            console.log('✅ [PUBLISH] Image downloaded, converting to WebP...');
             
-            // Since Fal.ai already generates optimized images, save directly without compression
-            const imageFileName = `${storyId}.jpg`;
+            // Convertir directamente a WebP optimizado (sin pasar por PNG/JPG)
+            const sharp = require('sharp');
+            const webpBuffer = await sharp(imageBuffer)
+                .resize(512, 512, {
+                    fit: 'inside',
+                    withoutEnlargement: true
+                })
+                .webp({
+                    quality: 75,
+                    effort: 6,
+                    smartSubsample: true
+                })
+                .toBuffer();
+            
+            const imageFileName = `${storyId}.webp`;
             imageFilePath = path.join(tempDir, imageFileName);
-            await fs.writeFile(imageFilePath, imageBuffer);
-            console.log('✅ [PUBLISH] Image saved, uploading to Firebase...');
+            await fs.writeFile(imageFilePath, webpBuffer);
+            console.log('✅ [PUBLISH] WebP image saved locally, uploading to Firebase...');
             
-            imagePath = await uploadToFirebaseStorage(imageFilePath, `images/${imageFileName}`);
-            console.log('✅ [PUBLISH] Image uploaded to Firebase successfully');
+            // Subir directamente usando el bucket de Firebase con el contentType correcto
+            const bucket = getFirebaseStorageBucket();
+            const storagePath = `images/${imageFileName}`;
+            await bucket.upload(imageFilePath, {
+                destination: storagePath,
+                metadata: {
+                    cacheControl: 'public, max-age=31536000, immutable',
+                    contentType: 'image/webp'
+                }
+            });
+            
+            // Hacer público (igual que en LearnEnglish)
+            const file = bucket.file(storagePath);
+            await file.makePublic();
+            
+            imagePath = storagePath; // Guardamos la ruta en Storage, como antes
+            console.log('✅ [PUBLISH] WebP image uploaded to Firebase successfully:', storagePath);
         } catch (imageError) {
             console.error('❌ [PUBLISH] Image generation/processing failed:', imageError.message);
             

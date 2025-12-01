@@ -39,46 +39,79 @@ async function generateStoryImage(story) {
     const fetch = require('node-fetch');
     const sharp = require('sharp');
     
-    console.log(`🎨 Generating Memphis abstract image for story: ${story.id}`);
+    console.log(`🎨 Generating Memphis image for story: ${story.id}`);
+    console.log(`🎨 Story object keys:`, Object.keys(story));
+    console.log(`🎨 Story.characters:`, story.characters);
+    console.log(`🎨 Story.text type:`, typeof story.text);
+    console.log(`🎨 Story.text preview:`, typeof story.text === 'string' ? story.text.substring(0, 100) : story.text);
     
-    // Crear descripción abstracta de la escena SIN mencionar personas
-    let sceneDescription = '';
+    // Crear prompt basado en el contenido de la historia
+    const characterName = story.characters && story.characters[0] ? story.characters[0] : null;
+    console.log(`🎨 Character name extracted:`, characterName);
+    let character = null;
     
-    // Detectar el tipo de escena basándose en el storyId y vocabulario
-    if (story.vocabulary.includes('mission') || story.vocabulary.includes('rescue')) {
-      sceneDescription = 'space rescue mission with geometric rocket approaching a distant spaceship among stars';
-    } else if (story.vocabulary.includes('magic') || story.vocabulary.includes('wizard')) {
-      sceneDescription = 'magical purple planet with geometric glowing shapes and mystical cosmic patterns';
-    } else if (story.vocabulary.includes('lost') || story.vocabulary.includes('search')) {
-      sceneDescription = 'red planet landscape with geometric rocks and searching spacecraft';
-    } else if (story.vocabulary.includes('plan') || story.vocabulary.includes('solve')) {
-      sceneDescription = 'rocket with glowing repair elements and geometric tool shapes in space';
-    } else if (story.vocabulary.includes('fun') || story.vocabulary.includes('laugh')) {
-      sceneDescription = 'colorful geometric shapes floating around a purple planet with magical sparkles';
-    } else if (story.vocabulary.includes('success') || story.vocabulary.includes('home')) {
-      sceneDescription = 'geometric rocket flying towards blue Earth with victory stars and cosmic celebration patterns';
-    } else if (story.vocabulary.includes('team') || story.vocabulary.includes('together')) {
-      sceneDescription = 'five geometric badges or symbols arranged in a circle with cosmic team emblem';
+    if (characterName) {
+      try {
+        const charactersData = require('../data/fiveFromEarthCharacters');
+        character = charactersData.getCharacter(characterName);
+        console.log(`🎨 Character loaded:`, character ? character.name : 'null');
+      } catch (error) {
+        console.warn(`⚠️ Could not load character ${characterName}, using abstract style:`, error.message);
+      }
     } else {
-      // Default para cuentos de presentación (Semana 1)
-      sceneDescription = 'colorful geometric rocket and space exploration badge with stars and cosmic elements';
+      console.warn(`⚠️ No character name found in story.characters`);
     }
     
-    const prompt = `Memphis Espacial Nocturno style ABSTRACT illustration:
-Scene: ${sceneDescription}
+    // Extraer escena clave del texto - usar más líneas para capturar mejor el contexto
+    const storyText = typeof story.text === 'string' ? story.text : (story.text?.en || story.text?.es || '');
+    // Usar las primeras 5-7 líneas para capturar más contexto de la historia
+    const lines = storyText.split('\n').filter(line => line.trim().length > 0); // Filtrar líneas vacías
+    const sceneLines = lines.slice(0, 7).join(' '); // Tomar hasta 7 líneas no vacías
+    console.log(`🎨 Scene lines extracted (${lines.length} total lines, using first 7):`, sceneLines.substring(0, 200));
+    
+    let prompt;
+    
+    if (character) {
+      // Prompt original con personaje (como el 28 de noviembre)
+      const characterLocation = character.city ? `${character.city}, ${character.country}` : character.country;
+      prompt = `Memphis Espacial Nocturno style illustration: geometric shapes, vibrant electric blue, hot pink, yellow, and deep purples. 
+Night space theme with stars and planets. 
+Character: ${character.name} from ${characterLocation}, ${character.description}. 
+Scene: ${sceneLines}
+Style: energetic, educational, child-friendly geometric shapes and patterns.
+
+CRITICAL - CHARACTER MUST BE:
+- Viewed from behind (back view) OR
+- In silhouette/shadow with NO facial details OR  
+- Face completely hidden/obscured OR
+- Face extremely blurred/out of focus
+DO NOT show clear facial features, eyes, nose, or mouth.
+Focus on: body posture, clothing, activity, and environment - NOT on character's face.
+
+IMPORTANT: NO TEXT OR WORDS in the image - only visual elements.`;
+    } else {
+      // Fallback abstracto si no hay personaje
+      prompt = `Memphis Espacial Nocturno style ABSTRACT illustration:
+Scene: ${sceneLines || 'space exploration and adventure'}
 Style: geometric shapes, vibrant electric blue, hot pink, yellow, deep purples, and cosmic colors.
 Night space theme with stars, planets, rockets, and cosmic elements.
 ABSTRACT geometric shapes representing space exploration and adventure.
 NO human figures, NO faces, NO people, NO characters, NO children.
 Only: rockets, spaceships, planets, stars, geometric shapes, space elements, cosmic patterns, badges, symbols.
 Child-friendly, energetic, educational geometric Memphis design.
-Focus on: space vehicles, planetary landscapes, cosmic geometry, abstract symbols.
 IMPORTANT: NO TEXT OR WORDS in the image - only visual elements.`;
+    }
     
-    console.log(`🎨 Scene description: ${sceneDescription}`);
+    console.log(`🎨 Character: ${character ? character.name : 'none (abstract)'}`);
+    console.log(`🎨 Scene: ${sceneLines.substring(0, 150)}...`);
+    console.log(`🎨 Story ID: ${story.id}`);
+    console.log(`🎨 Story vocabulary:`, story.vocabulary);
+    console.log(`🎨 Full prompt (BEFORE openaiService):`);
+    console.log(prompt);
+    console.log(`🎨 Prompt length: ${prompt.length} characters`);
     
-    // Generar imagen con tamaño más pequeño (512x512 en lugar de 1024x1024)
-    const response = await generateImage(prompt, '512x512');
+    // Generar imagen (usar default como en el código original del 28 de noviembre)
+    const response = await generateImage(prompt);
     
     if (!response.data || !response.data[0] || !response.data[0].url) {
       throw new Error('Invalid response from image generation service');
@@ -253,6 +286,62 @@ const STORIES_DATA = {
     text: {
       en: 'We are a team. We are different. But we work together. We are friends. We are the Five from Earth.',
       es: 'Somos un equipo. Somos diferentes. Pero trabajamos juntos. Somos amigos. Somos los Cinco de la Tierra.'
+    }
+  },
+  // Mes 1 - Semana 3
+  'm1w3s1': {
+    title: { es: '¡Alerta de Misión!', en: 'Mission Alert!' },
+    vocabulary: ['mission', 'rescue', 'rocket', 'ready'],
+    character: 'The Five',
+    text: {
+      en: 'The Five from Earth receive a mission alert. A small rocket is lost in space. The team gets ready, checks the rocket, and flies into the stars to start the rescue.',
+      es: 'Los Cinco de la Tierra reciben una alerta de misión. Un pequeño cohete está perdido en el espacio. El equipo se prepara, revisa el cohete y vuela hacia las estrellas para comenzar el rescate.'
+    }
+  },
+  'm1w3s2': {
+    title: { es: 'El Explorador Perdido', en: 'The Lost Explorer' },
+    vocabulary: ['lost', 'find', 'search', 'planet'],
+    character: 'The Five',
+    text: {
+      en: 'On a strange planet, the Five search for a lost explorer. They look behind rocks, in caves, and in the sky. Step by step, they follow tracks and finally find the explorer safe but scared.',
+      es: 'En un planeta extraño, los Cinco buscan a un explorador perdido. Miran detrás de las rocas, en las cuevas y en el cielo. Paso a paso, siguen las huellas y finalmente encuentran al explorador sano pero asustado.'
+    }
+  },
+  'm1w3s3': {
+    title: { es: 'El Plan de María', en: "María's Plan" },
+    vocabulary: ['smart', 'idea', 'plan', 'solve'],
+    character: 'María',
+    text: {
+      en: 'María has a smart idea to solve the mission. She draws a simple plan, shares it with the team, and step by step they follow it. Thanks to María’s plan, the problem is solved.',
+      es: 'María tiene una idea inteligente para resolver la misión. Dibuja un plan sencillo, lo comparte con el equipo y paso a paso lo siguen. Gracias al plan de María, el problema se resuelve.'
+    }
+  },
+  // Mes 1 - Semana 4
+  'm1w4s1': {
+    title: { es: 'El Planeta de los Magos', en: 'The Wizard Planet' },
+    vocabulary: ['explore', 'magic', 'wizard', 'strange'],
+    character: 'The Five',
+    text: {
+      en: 'The Five land on a wizard planet full of strange lights and magic shapes. They explore carefully, meet a friendly wizard, and learn that real magic is working together as a team.',
+      es: 'Los Cinco aterrizan en un planeta de magos lleno de luces extrañas y formas mágicas. Exploran con cuidado, conocen a un mago amistoso y aprenden que la verdadera magia es trabajar juntos como equipo.'
+    }
+  },
+  'm1w4s2': {
+    title: { es: 'Sara y Eva se Divierten', en: 'Sara and Eva Have Fun' },
+    vocabulary: ['fun', 'laugh', 'spell', 'careful'],
+    character: 'Sara y Eva',
+    text: {
+      en: 'On the wizard planet, Sara and Eva try funny spells. They laugh when colors change and small stars appear, but they also learn to be careful and to stop a spell if it is too strong.',
+      es: 'En el planeta de los magos, Sara y Eva prueban hechizos divertidos. Se ríen cuando los colores cambian y aparecen pequeñas estrellas, pero también aprenden a tener cuidado y a detener un hechizo si es demasiado fuerte.'
+    }
+  },
+  'm1w4s3': {
+    title: { es: 'Éxito del Equipo', en: 'Team Success' },
+    vocabulary: ['success', 'proud', 'home', 'Earth'],
+    character: 'The Five',
+    text: {
+      en: 'The mission is a success and the Five return home to Earth. They feel proud because they helped others and worked together. At the end of the day, they look at the stars and are ready for the next adventure.',
+      es: 'La misión es un éxito y los Cinco regresan a casa, a la Tierra. Se sienten orgullosos porque ayudaron a otros y trabajaron juntos. Al final del día miran las estrellas y están listos para la próxima aventura.'
     }
   }
 };
@@ -507,74 +596,100 @@ exports.getStory = async (req, res) => {
     
     // Verificar si los audios ya existen en Firebase Storage
     const FORCE_REGENERATE = false; // Usar caché para optimizar costos y velocidad
+    const bucket = getFirebaseStorageBucket();
     
-    if (!FORCE_REGENERATE) {
-      try {
-        // Intentar obtener URLs existentes
-        const bucket = getFirebaseStorageBucket();
-        
+    // Intentar obtener URLs de audios existentes (pero no fallar si no existen)
+    try {
+      const [introExists] = await bucket.file(`learn-english-audio/${audioFileNames.intro}`).exists();
+      if (introExists) {
         const [introFile] = await bucket.file(`learn-english-audio/${audioFileNames.intro}`).get();
         const introPath = encodeURIComponent(introFile.name);
         introUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${introPath}?alt=media`;
-        
+      }
+      
+      const [vocabExists] = await bucket.file(`learn-english-audio/${audioFileNames.vocab}`).exists();
+      if (vocabExists) {
         const [vocabFile] = await bucket.file(`learn-english-audio/${audioFileNames.vocab}`).get();
         const vocabPath = encodeURIComponent(vocabFile.name);
         vocabUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${vocabPath}?alt=media`;
-        
+      }
+      
+      const [storyExists] = await bucket.file(`learn-english-audio/${audioFileNames.story}`).exists();
+      if (storyExists) {
         const [storyFile] = await bucket.file(`learn-english-audio/${audioFileNames.story}`).get();
         const storyPath = encodeURIComponent(storyFile.name);
         storyUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${storyPath}?alt=media`;
-        
+      }
+      
+      if (introUrl && vocabUrl && storyUrl) {
         console.log('✅ Using existing audio files');
         console.log('📤 Intro URL:', introUrl);
         console.log('📤 Vocab URL:', vocabUrl);
         console.log('📤 Story URL:', storyUrl);
-        
-        // COMPONENTE 4: IMAGEN (Memphis Espacial Nocturno)
-        let imageUrl;
-        const imageFormat = await imageExists(storyId);
-        if (imageFormat) {
-          const extension = imageFormat === 'webp' ? 'webp' : 'png';
-          const storagePath = `learn-english-images/${storyId}-memphis.${extension}`;
-          const file = bucket.file(storagePath);
-          
-          // Generar URL firmada para acceso seguro (válida por 10 años)
-          try {
-            const [signedUrl] = await file.getSignedUrl({
-              action: 'read',
-              expires: Date.now() + (10 * 365 * 24 * 60 * 60 * 1000)
-            });
-            imageUrl = signedUrl;
-            console.log(`✓ Story image exists (${extension}, cached)`);
-            console.log('📤 Image URL:', imageUrl);
-          } catch (urlError) {
-            console.error('❌ Error getting signed URL:', urlError.message);
-            imageUrl = null;
-          }
-        } else {
-          console.log('🎨 Generating Memphis story image');
-          imageUrl = await generateStoryImage(storyData);
-          if (imageUrl) {
-            console.log('✅ Story image generated');
-            console.log('📤 Image URL:', imageUrl);
-          } else {
-            console.log('⚠️ Story image generation failed, continuing without image');
-          }
-        }
-        
-        return res.json({
-          success: true,
-          story: {
-            ...storyData,
-            introUrl,
-            vocabUrl,
-            storyUrl,
-            imageUrl
-          }
-        });
-      } catch (error) {
-        console.log('⚠️ Existing files not found, will generate new ones');
+      } else {
+        console.log('⚠️ Some audio files missing, will generate them');
       }
+    } catch (audioError) {
+      console.log('⚠️ Error checking audio files, will generate them:', audioError.message);
+    }
+    
+    // COMPONENTE 4: IMAGEN (Memphis Espacial Nocturno) - SIEMPRE verificar y generar si falta
+    let imageUrl = null;
+    console.log(`🖼️ [getStory] Checking if image exists for ${storyId}...`);
+    try {
+      const imageFormat = await imageExists(storyId);
+      console.log(`🖼️ [getStory] Image format check result: ${imageFormat || 'NOT FOUND'}`);
+      
+      if (imageFormat) {
+        const extension = imageFormat === 'webp' ? 'webp' : 'png';
+        const storagePath = `learn-english-images/${storyId}-memphis.${extension}`;
+        const file = bucket.file(storagePath);
+        
+        // Generar URL firmada para acceso seguro (válida por 10 años)
+        try {
+          const [signedUrl] = await file.getSignedUrl({
+            action: 'read',
+            expires: Date.now() + (10 * 365 * 24 * 60 * 60 * 1000)
+          });
+          imageUrl = signedUrl;
+          console.log(`✅ [getStory] Story image exists (${extension}, cached)`);
+          console.log('📤 [getStory] Image URL:', imageUrl);
+        } catch (urlError) {
+          console.error('❌ [getStory] Error getting signed URL:', urlError.message);
+          imageUrl = null;
+        }
+      } else {
+        console.log(`🎨 [getStory] Image NOT FOUND for ${storyId}, GENERATING NOW...`);
+        console.log(`🎨 [getStory] Calling generateStoryImage with storyData:`, {
+          id: storyData.id,
+          vocabulary: storyData.vocabulary,
+          title: storyData.title
+        });
+        imageUrl = await generateStoryImage(storyData);
+        if (imageUrl) {
+          console.log('✅ [getStory] Story image generated successfully');
+          console.log('📤 [getStory] Image URL:', imageUrl);
+        } else {
+          console.log('⚠️ [getStory] Story image generation returned null');
+        }
+      }
+    } catch (imageError) {
+      console.error('❌ [getStory] Error checking/generating image:', imageError.message);
+      console.error('❌ [getStory] Error stack:', imageError.stack);
+    }
+    
+    // Si tenemos todos los audios, devolver respuesta inmediatamente
+    if (introUrl && vocabUrl && storyUrl) {
+      return res.json({
+        success: true,
+        story: {
+          ...storyData,
+          introUrl,
+          vocabUrl,
+          storyUrl,
+          imageUrl
+        }
+      });
     }
     
     // Generar audios (siempre en modo debug, o si no existen)
@@ -606,37 +721,33 @@ exports.getStory = async (req, res) => {
     console.log('   Vocab:', vocabUrl);
     console.log('   Story:', storyUrl);
     
-    // COMPONENTE 4: IMAGEN (Memphis Espacial Nocturno)
-    let imageUrl;
-    try {
-      const bucket = getFirebaseStorageBucket();
-      const imageFormat = await imageExists(storyId);
-      if (imageFormat) {
-        const extension = imageFormat === 'webp' ? 'webp' : 'png';
-        const storagePath = `learn-english-images/${storyId}-memphis.${extension}`;
-        const file = bucket.file(storagePath);
-        
-        // Generar URL firmada para acceso seguro (válida por 10 años)
-        const [signedUrl] = await file.getSignedUrl({
-          action: 'read',
-          expires: Date.now() + (10 * 365 * 24 * 60 * 60 * 1000)
-        });
-        imageUrl = signedUrl;
-        console.log(`✓ Story image exists (${extension}, cached)`);
-        console.log('   Image:', imageUrl);
-      } else {
-        console.log('🎨 Generating Memphis story image');
-        imageUrl = await generateStoryImage(storyData);
-        if (imageUrl) {
-          console.log('✅ Story image generated');
-          console.log('   Image:', imageUrl);
+    // La imagen ya fue manejada en el bloque anterior (línea 609)
+    // Si no se generó antes, intentar generarla ahora
+    if (!imageUrl) {
+      console.log(`🖼️ [getStory-FALLBACK] Image was not set, checking again...`);
+      try {
+        const imageFormat = await imageExists(storyId);
+        if (imageFormat) {
+          const extension = imageFormat === 'webp' ? 'webp' : 'png';
+          const storagePath = `learn-english-images/${storyId}-memphis.${extension}`;
+          const file = bucket.file(storagePath);
+          const [signedUrl] = await file.getSignedUrl({
+            action: 'read',
+            expires: Date.now() + (10 * 365 * 24 * 60 * 60 * 1000)
+          });
+          imageUrl = signedUrl;
+          console.log(`✅ [getStory-FALLBACK] Story image exists (${extension}, cached)`);
         } else {
-          console.log('⚠️ Story image generation failed, continuing without image');
+          console.log(`🎨 [getStory-FALLBACK] Image NOT FOUND, GENERATING NOW...`);
+          imageUrl = await generateStoryImage(storyData);
+          if (imageUrl) {
+            console.log('✅ [getStory-FALLBACK] Story image generated successfully');
+          }
         }
+      } catch (imageError) {
+        console.error('❌ [getStory-FALLBACK] Error with image:', imageError.message);
+        imageUrl = null;
       }
-    } catch (imageError) {
-      console.error('❌ Error with image:', imageError.message);
-      imageUrl = null;
     }
     
     // Devolver la historia con URLs de audio e imagen
@@ -728,6 +839,43 @@ exports.getAllImageUrls = async (req, res) => {
       success: true,
       imageUrls: {}
     });
+  }
+};
+
+/**
+ * Helper para generar (o regenerar) la imagen de una historia concreta.
+ * Se exporta para poder usarlo desde scripts sin pasar por el flujo del primer usuario.
+ */
+exports.generateImageForStory = async (storyId) => {
+  try {
+    // Usar la misma fuente de datos que cuando un usuario hace clic
+    const { getStory } = require('../data/fiveFromEarthStories');
+    const storyData = getStory(storyId);
+    
+    if (!storyData) {
+      throw new Error(`Invalid or unknown storyId: ${storyId}`);
+    }
+
+    console.log(`\n🎨 [SCRIPT] Forcing image generation for story: ${storyId}`);
+
+    const existingFormat = await imageExists(storyId);
+    if (existingFormat) {
+      console.log(`🖼️ [SCRIPT] Image already exists for ${storyId} (${existingFormat}), skipping`);
+      return { success: true, skipped: true, format: existingFormat };
+    }
+
+    // Usar exactamente los mismos datos que cuando un usuario hace clic
+    const imageUrl = await generateStoryImage(storyData);
+
+    if (!imageUrl) {
+      throw new Error('Image generation returned null');
+    }
+
+    console.log(`✅ [SCRIPT] Image generated successfully for ${storyId}`);
+    return { success: true, skipped: false, url: imageUrl };
+  } catch (error) {
+    console.error(`❌ [SCRIPT] Failed to generate image for ${storyId}:`, error.message);
+    return { success: false, error: error.message };
   }
 };
 
