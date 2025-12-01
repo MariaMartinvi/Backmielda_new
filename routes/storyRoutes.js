@@ -126,6 +126,10 @@ router.get('/my-stories', auth, (req, res, next) => {
   storyController.getMyStories(req, res, next);
 });
 
+// Get signed URL for library images (prioritizes WebP)
+// GET /api/stories/image-url?path=images/filename.jpg
+router.get('/image-url', storyController.getLibraryImageUrl);
+
 // Get story by ID
 router.get('/:storyId', auth, storyController.getStoryById);
 

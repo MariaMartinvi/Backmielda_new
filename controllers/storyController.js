@@ -59,6 +59,88 @@ const getFirebaseStorageBucket = () => {
   return bucket;
 };
 
+/**
+ * Get signed URL for a library image (prioritizes WebP if exists)
+ * Endpoint: GET /api/stories/image-url?path=images/filename.jpg
+ */
+exports.getLibraryImageUrl = async (req, res) => {
+  try {
+    const { path: imagePath } = req.query;
+    
+    if (!imagePath) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required parameter: path'
+      });
+    }
+
+    const bucket = getFirebaseStorageBucket();
+    
+    // Normalize path (remove leading slash if present)
+    const normalizedPath = imagePath.startsWith('/') ? imagePath.substring(1) : imagePath;
+    
+    // Extract base name and extension
+    const pathParts = normalizedPath.split('/');
+    const filename = pathParts[pathParts.length - 1];
+    const dir = pathParts.slice(0, -1).join('/');
+    const baseName = filename.replace(/\.(jpg|jpeg|png|webp)$/i, '');
+    const originalExt = filename.match(/\.(jpg|jpeg|png|webp)$/i)?.[1]?.toLowerCase() || 'jpg';
+    
+    let targetFile = null;
+    let usedFormat = null;
+    
+    // 1) Try WebP first (if original is not already WebP)
+    if (originalExt !== 'webp') {
+      const webpPath = dir ? `${dir}/${baseName}.webp` : `${baseName}.webp`;
+      const webpFile = bucket.file(webpPath);
+      const [webpExists] = await webpFile.exists();
+      
+      if (webpExists) {
+        targetFile = webpFile;
+        usedFormat = 'webp';
+        console.log(`🖼️ [Library] Using WEBP for ${normalizedPath}: ${webpPath}`);
+      }
+    }
+    
+    // 2) Fallback to original format
+    if (!targetFile) {
+      const originalFile = bucket.file(normalizedPath);
+      const [originalExists] = await originalFile.exists();
+      
+      if (originalExists) {
+        targetFile = originalFile;
+        usedFormat = originalExt;
+        console.log(`🖼️ [Library] Using ${originalExt.toUpperCase()} for ${normalizedPath}`);
+      } else {
+        return res.status(404).json({
+          success: false,
+          error: `Image not found: ${normalizedPath}`
+        });
+      }
+    }
+    
+    // Generate signed URL (valid for 10 years)
+    const [signedUrl] = await targetFile.getSignedUrl({
+      action: 'read',
+      expires: Date.now() + (10 * 365 * 24 * 60 * 60 * 1000)
+    });
+    
+    res.json({
+      success: true,
+      url: signedUrl,
+      format: usedFormat,
+      path: normalizedPath
+    });
+    
+  } catch (error) {
+    console.error('❌ Error getting library image URL:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
 exports.generateStory = async (req, res, next) => {
   console.log('📝 Story generation request received:', req.body?.topic || 'No topic provided');
   
