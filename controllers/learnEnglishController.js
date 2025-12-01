@@ -37,42 +37,55 @@ async function generateStoryImage(story) {
     const path = require('path');
     const os = require('os');
     const fetch = require('node-fetch');
+    const sharp = require('sharp');
     
-    console.log(`🎨 Generating Memphis image for story: ${story.id}`);
+    console.log(`🎨 Generating Memphis abstract image for story: ${story.id}`);
     
-    // Crear prompt basado en el contenido de la historia
-    const characterName = story.characters[0]; // Primer personaje
-    const character = require('../data/fiveFromEarthCharacters').getCharacter(characterName);
+    // Crear descripción abstracta de la escena SIN mencionar personas
+    let sceneDescription = '';
     
-    // Extraer escena clave del texto
-    const storyText = story.text;
-    const firstLines = storyText.split('\n').slice(0, 3).join(' ');
+    // Detectar el tipo de escena basándose en el storyId y vocabulario
+    if (story.vocabulary.includes('mission') || story.vocabulary.includes('rescue')) {
+      sceneDescription = 'space rescue mission with geometric rocket approaching a distant spaceship among stars';
+    } else if (story.vocabulary.includes('magic') || story.vocabulary.includes('wizard')) {
+      sceneDescription = 'magical purple planet with geometric glowing shapes and mystical cosmic patterns';
+    } else if (story.vocabulary.includes('lost') || story.vocabulary.includes('search')) {
+      sceneDescription = 'red planet landscape with geometric rocks and searching spacecraft';
+    } else if (story.vocabulary.includes('plan') || story.vocabulary.includes('solve')) {
+      sceneDescription = 'rocket with glowing repair elements and geometric tool shapes in space';
+    } else if (story.vocabulary.includes('fun') || story.vocabulary.includes('laugh')) {
+      sceneDescription = 'colorful geometric shapes floating around a purple planet with magical sparkles';
+    } else if (story.vocabulary.includes('success') || story.vocabulary.includes('home')) {
+      sceneDescription = 'geometric rocket flying towards blue Earth with victory stars and cosmic celebration patterns';
+    } else if (story.vocabulary.includes('team') || story.vocabulary.includes('together')) {
+      sceneDescription = 'five geometric badges or symbols arranged in a circle with cosmic team emblem';
+    } else {
+      // Default para cuentos de presentación (Semana 1)
+      sceneDescription = 'colorful geometric rocket and space exploration badge with stars and cosmic elements';
+    }
     
-    const prompt = `Memphis Espacial Nocturno style illustration: geometric shapes, vibrant electric blue, hot pink, yellow, and deep purples. 
-Night space theme with stars and planets. 
-Character: ${character.name} from ${character.from}, ${character.description}. 
-Scene: ${firstLines}
-Style: energetic, educational, child-friendly geometric shapes and patterns.
-
-CRITICAL - CHARACTER MUST BE:
-- Viewed from behind (back view) OR
-- In silhouette/shadow with NO facial details OR  
-- Face completely hidden/obscured OR
-- Face extremely blurred/out of focus
-DO NOT show clear facial features, eyes, nose, or mouth.
-Focus on: body posture, clothing, activity, and environment - NOT on character's face.
-
+    const prompt = `Memphis Espacial Nocturno style ABSTRACT illustration:
+Scene: ${sceneDescription}
+Style: geometric shapes, vibrant electric blue, hot pink, yellow, deep purples, and cosmic colors.
+Night space theme with stars, planets, rockets, and cosmic elements.
+ABSTRACT geometric shapes representing space exploration and adventure.
+NO human figures, NO faces, NO people, NO characters, NO children.
+Only: rockets, spaceships, planets, stars, geometric shapes, space elements, cosmic patterns, badges, symbols.
+Child-friendly, energetic, educational geometric Memphis design.
+Focus on: space vehicles, planetary landscapes, cosmic geometry, abstract symbols.
 IMPORTANT: NO TEXT OR WORDS in the image - only visual elements.`;
     
-    // Generar imagen
-    const response = await generateImage(prompt);
+    console.log(`🎨 Scene description: ${sceneDescription}`);
+    
+    // Generar imagen con tamaño más pequeño (512x512 en lugar de 1024x1024)
+    const response = await generateImage(prompt, '512x512');
     
     if (!response.data || !response.data[0] || !response.data[0].url) {
       throw new Error('Invalid response from image generation service');
     }
     
     const imageUrl = response.data[0].url;
-    console.log('✅ Image generated, processing...');
+    console.log('✅ Image generated, processing and optimizing...');
     
     // Descargar imagen
     let imageBuffer;
@@ -88,11 +101,29 @@ IMPORTANT: NO TEXT OR WORDS in the image - only visual elements.`;
       imageBuffer = Buffer.from(arrayBuffer);
     }
     
-    // Guardar temporalmente
+    console.log(`📊 Original image size: ${(imageBuffer.length / 1024).toFixed(2)} KB`);
+    
+    // OPTIMIZACIÓN: Convertir a WebP con compresión agresiva
+    const optimizedBuffer = await sharp(imageBuffer)
+      .resize(512, 512, {
+        fit: 'inside',
+        withoutEnlargement: true
+      })
+      .webp({
+        quality: 75,        // Buena calidad pero con compresión
+        effort: 6,          // Mayor esfuerzo de compresión
+        smartSubsample: true // Mejor calidad de colores
+      })
+      .toBuffer();
+    
+    console.log(`📊 Optimized image size: ${(optimizedBuffer.length / 1024).toFixed(2)} KB`);
+    console.log(`📉 Size reduction: ${(((imageBuffer.length - optimizedBuffer.length) / imageBuffer.length) * 100).toFixed(1)}%`);
+    
+    // Guardar temporalmente la versión optimizada
     const tempDir = os.tmpdir();
-    const imageFileName = `${story.id}-memphis.png`;
+    const imageFileName = `${story.id}-memphis.webp`; // Cambiar extensión a .webp
     const imagePath = path.join(tempDir, imageFileName);
-    await fs.writeFile(imagePath, imageBuffer);
+    await fs.writeFile(imagePath, optimizedBuffer);
     
     // Subir a Firebase Storage
     const bucket = getFirebaseStorageBucket();
@@ -101,8 +132,8 @@ IMPORTANT: NO TEXT OR WORDS in the image - only visual elements.`;
     await bucket.upload(imagePath, {
       destination: storagePath,
       metadata: {
-        cacheControl: 'public, max-age=31536000',
-        contentType: 'image/png'
+        cacheControl: 'public, max-age=31536000, immutable',
+        contentType: 'image/webp' // Cambiar content type
       },
     });
     
@@ -141,13 +172,26 @@ IMPORTANT: NO TEXT OR WORDS in the image - only visual elements.`;
   }
 }
 
-// Verificar si una imagen existe
+// Verificar si una imagen existe (priorizar WebP, fallback a PNG)
 async function imageExists(storyId) {
   try {
     const bucket = getFirebaseStorageBucket();
-    const file = bucket.file(`learn-english-images/${storyId}-memphis.png`);
-    const [exists] = await file.exists();
-    return exists;
+    
+    // Primero buscar versión optimizada WebP
+    const webpFile = bucket.file(`learn-english-images/${storyId}-memphis.webp`);
+    const [webpExists] = await webpFile.exists();
+    if (webpExists) {
+      return 'webp';
+    }
+    
+    // Fallback: buscar versión PNG antigua
+    const pngFile = bucket.file(`learn-english-images/${storyId}-memphis.png`);
+    const [pngExists] = await pngFile.exists();
+    if (pngExists) {
+      return 'png';
+    }
+    
+    return false;
   } catch (error) {
     return false;
   }
@@ -488,8 +532,10 @@ exports.getStory = async (req, res) => {
         
         // COMPONENTE 4: IMAGEN (Memphis Espacial Nocturno)
         let imageUrl;
-        if (await imageExists(storyId)) {
-          const storagePath = `learn-english-images/${storyId}-memphis.png`;
+        const imageFormat = await imageExists(storyId);
+        if (imageFormat) {
+          const extension = imageFormat === 'webp' ? 'webp' : 'png';
+          const storagePath = `learn-english-images/${storyId}-memphis.${extension}`;
           const file = bucket.file(storagePath);
           
           // Generar URL firmada para acceso seguro (válida por 10 años)
@@ -499,7 +545,7 @@ exports.getStory = async (req, res) => {
               expires: Date.now() + (10 * 365 * 24 * 60 * 60 * 1000)
             });
             imageUrl = signedUrl;
-            console.log('✓ Story image exists (cached)');
+            console.log(`✓ Story image exists (${extension}, cached)`);
             console.log('📤 Image URL:', imageUrl);
           } catch (urlError) {
             console.error('❌ Error getting signed URL:', urlError.message);
@@ -564,8 +610,10 @@ exports.getStory = async (req, res) => {
     let imageUrl;
     try {
       const bucket = getFirebaseStorageBucket();
-      if (await imageExists(storyId)) {
-        const storagePath = `learn-english-images/${storyId}-memphis.png`;
+      const imageFormat = await imageExists(storyId);
+      if (imageFormat) {
+        const extension = imageFormat === 'webp' ? 'webp' : 'png';
+        const storagePath = `learn-english-images/${storyId}-memphis.${extension}`;
         const file = bucket.file(storagePath);
         
         // Generar URL firmada para acceso seguro (válida por 10 años)
@@ -574,7 +622,7 @@ exports.getStory = async (req, res) => {
           expires: Date.now() + (10 * 365 * 24 * 60 * 60 * 1000)
         });
         imageUrl = signedUrl;
-        console.log('✓ Story image exists (cached)');
+        console.log(`✓ Story image exists (${extension}, cached)`);
         console.log('   Image:', imageUrl);
       } else {
         console.log('🎨 Generating Memphis story image');
@@ -627,13 +675,35 @@ exports.getAllImageUrls = async (req, res) => {
     ];
     
     // Generar URLs firmadas para cada historia que tenga imagen
+    // Preferimos siempre la versión WEBP si existe, y caemos a PNG solo si no hay WEBP
     for (const storyId of storyIds) {
       try {
-        if (await imageExists(storyId)) {
-          const storagePath = `learn-english-images/${storyId}-memphis.png`;
-          const file = bucket.file(storagePath);
-          
-          const [signedUrl] = await file.getSignedUrl({
+        let targetFile = null;
+
+        // 1) Intentar WEBP primero
+        const webpPath = `learn-english-images/${storyId}-memphis.webp`;
+        const webpFile = bucket.file(webpPath);
+        const [webpExists] = await webpFile.exists();
+
+        if (webpExists) {
+          targetFile = webpFile;
+          console.log(`🖼️ [LearnEnglish] Using WEBP for ${storyId}: ${webpPath}`);
+        } else {
+          // 2) Fallback a PNG
+          const pngPath = `learn-english-images/${storyId}-memphis.png`;
+          const pngFile = bucket.file(pngPath);
+          const [pngExists] = await pngFile.exists();
+
+          if (pngExists) {
+            targetFile = pngFile;
+            console.log(`🖼️ [LearnEnglish] Using PNG for ${storyId}: ${pngPath}`);
+          } else {
+            console.warn(`🖼️ [LearnEnglish] No image found for ${storyId} (neither WEBP nor PNG)`);
+          }
+        }
+
+        if (targetFile) {
+          const [signedUrl] = await targetFile.getSignedUrl({
             action: 'read',
             expires: Date.now() + (10 * 365 * 24 * 60 * 60 * 1000) // 10 años
           });

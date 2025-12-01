@@ -421,9 +421,10 @@ exports.checkOpenAIStatus = async () => {
 };
 
 // Generate image with Fal.ai (faster and smaller images)
-exports.generateImage = async (prompt) => {
+exports.generateImage = async (prompt, size = 'square_hd') => {
   try {
     console.log('🎨 Generating image with Fal.ai for prompt:', prompt);
+    console.log('📐 Image size:', size);
     
     if (!process.env.FAL_API_KEY) {
       throw new Error('Fal.ai API key is not configured');
@@ -432,9 +433,17 @@ exports.generateImage = async (prompt) => {
     // Enhanced prompt for better story illustrations
     const enhancedPrompt = `Children's book illustration style, warm and friendly, colorful, safe for kids: ${prompt}`;
 
+    // Determinar el tamaño de imagen
+    let imageSize = 'square_hd'; // 1024x1024 por defecto
+    if (size === '512x512') {
+      imageSize = 'square'; // 512x512 - más rápido y ligero
+    } else if (size === 'square_hd' || size === '1024x1024') {
+      imageSize = 'square_hd'; // 1024x1024 - alta calidad
+    }
+
     const response = await axios.post('https://fal.run/fal-ai/fast-sdxl', {
       prompt: enhancedPrompt,
-      image_size: "square_hd", // 1024x1024 but optimized
+      image_size: imageSize,
       num_inference_steps: 25, // Good balance of quality/speed
       guidance_scale: 7.5,
       num_images: 1,
